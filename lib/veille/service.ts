@@ -2,6 +2,7 @@ import type { PrismaClient, TypeMarche } from "@prisma/client";
 import type { TenantDb } from "@/lib/tenant";
 import { normaliser, pertinence, typeDepuisCategorie, type CriteresVeille } from "./correspondance";
 import { collecterDetail, collecterRecents, CollecteInterrompue, SessionPmmp, type AvisBrut } from "./pmmp";
+import { heureFr } from "@/lib/dates";
 
 export const SOURCE_PMMP = "pmmp";
 export const SOURCE_RATTRAPAGE = "pmmp-rattrapage";
@@ -68,7 +69,12 @@ export async function completerDetails(prisma: PrismaClient, session: SessionPmm
   return n;
 }
 
-export class CollecteTropRapprochee extends Error {}
+/** Collecte refusée car la précédente est trop récente : les avis sont à jour. */
+export class CollecteTropRapprochee extends Error {
+  constructor(public readonly prochaine: Date) {
+    super(`Avis à jour : prochaine actualisation possible à ${heureFr(prochaine)}.`);
+  }
+}
 
 export async function derniereCollecte(prisma: PrismaClient) {
   return prisma.collecteVeille.findFirst({ where: { source: SOURCE_PMMP }, orderBy: { debut: "desc" } });
@@ -85,9 +91,7 @@ export async function collecter(
   const maintenant = options.maintenant ?? new Date();
   const derniere = await derniereCollecte(prisma);
   if (derniere && maintenant.getTime() - derniere.debut.getTime() < INTERVALLE_MIN_MINUTES * 60_000) {
-    throw new CollecteTropRapprochee(
-      `Dernière collecte il y a moins de ${INTERVALLE_MIN_MINUTES} minutes (${derniere.debut.toLocaleString("fr-FR")}).`,
-    );
+    throw new CollecteTropRapprochee(new Date(derniere.debut.getTime() + INTERVALLE_MIN_MINUTES * 60_000));
   }
   const journal = await prisma.collecteVeille.create({ data: { source: SOURCE_PMMP, declenchePar: options.declenchePar, debut: maintenant } });
   const session = options.session ?? new SessionPmmp();

@@ -7,6 +7,7 @@ import { profilDepuis, profilRenseigne } from "@/lib/qualifier/profil";
 import { quotaQualifications } from "@/lib/qualifier/service";
 import { requireTenant } from "@/lib/session";
 import { mad } from "@/lib/utils";
+import { dateFr } from "@/lib/dates";
 
 export const metadata = { title: "Qualifier" };
 
@@ -113,7 +114,7 @@ export default async function Qualifier({ searchParams }: { searchParams: Promis
                           {d.acheteur && <p className="text-xs text-slate-500">{d.acheteur}</p>}
                         </td>
                         <td className="px-4 py-2 text-right tabular-nums">{d.estimation ? mad(Number(d.estimation)) : "—"}</td>
-                        <td className="px-4 py-2 whitespace-nowrap">{d.dateDepot ? d.dateDepot.toLocaleDateString("fr-FR") : "—"}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{dateFr(d.dateDepot)}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{q ? `${q.scoreTotal}/100` : "—"}</td>
                         <td className="px-4 py-2">
                           {q ? (

@@ -10,6 +10,7 @@ import type { AnalyseAo } from "@/lib/qualifier/analyse";
 import { BLOCS, KILL_SWITCHES, SEUILS_VERDICT, type CleBloc, type CleKillSwitch } from "@/lib/qualifier/grille";
 import { requireTenant } from "@/lib/session";
 import { mad } from "@/lib/utils";
+import { dateFr, dateHeureFr } from "@/lib/dates";
 
 export const metadata = { title: "Qualification" };
 
@@ -100,7 +101,7 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
               <span className="text-slate-700"> · probabilité de gain {Math.round(dossier.simulations[0].probabiliteGain * 100)} %</span>
             )}
           </p>
-          <p className="text-xs text-slate-600">Simulée le {dossier.simulations[0].createdAt.toLocaleDateString("fr-FR")}</p>
+          <p className="text-xs text-slate-600">Simulée le {dateFr(dossier.simulations[0].createdAt)}</p>
         </Card>
       )}
 
@@ -175,7 +176,7 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500">
-          Qualifié le {q.createdAt.toLocaleString("fr-FR")}. Analyse assistée par IA : à vérifier sur le dossier original avant toute décision engageante.
+          Qualifié le {dateHeureFr(q.createdAt)}. Analyse assistée par IA : à vérifier sur le dossier original avant toute décision engageante.
         </p>
         <div className="print:hidden">
           <BoutonSupprimer dossierId={dossier.id} />

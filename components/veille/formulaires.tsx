@@ -103,6 +103,7 @@ export function BoutonActualiser() {
       </Button>
       {etat?.erreur && <p className="mt-1 max-w-xs text-xs text-red-700">{etat.erreur}</p>}
       {etat?.ok && <p className="mt-1 text-xs text-marque-800">{etat.ok}</p>}
+      {etat?.info && <p className="mt-1 max-w-xs text-xs text-slate-600">{etat.info}</p>}
     </form>
   );
 }

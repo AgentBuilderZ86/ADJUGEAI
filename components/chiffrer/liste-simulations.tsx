@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Card } from "@/components/ui/card";
 import { supprimerSim } from "@/app/(app)/chiffrer/actions";
 import { mad, pct } from "@/lib/utils";
+import { dateFr } from "@/lib/dates";
 
 export interface LigneSimulation {
   id: string;
@@ -39,7 +40,7 @@ export function ListeSimulations({ simulations }: { simulations: LigneSimulation
         <tbody>
           {simulations.map((s) => (
             <tr key={s.id} className="border-b border-slate-100 last:border-0">
-              <td className="px-4 py-2 whitespace-nowrap">{new Date(s.date).toLocaleDateString("fr-FR")}</td>
+              <td className="px-4 py-2 whitespace-nowrap">{dateFr(s.date)}</td>
               <td className="px-4 py-2">
                 {s.dossier ? (
                   <Link href={`/qualifier/${s.dossier.id}`} className="hover:text-marque-700">
