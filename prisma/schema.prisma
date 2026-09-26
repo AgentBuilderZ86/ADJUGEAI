@@ -1,0 +1,597 @@
+// Adjugé — modèle de données complet (8 modules), vague 0.
+//
+// Deux familles de tables :
+//  1. Données PUBLIQUES partagées (veille, PV d'ouverture, acheteurs, concurrents) :
+//     issues de sources officielles, identiques pour tous les cabinets, sans tenantId.
+//  2. Données CLIENTES : portent toutes un tenantId, et ne sont accessibles qu'au travers
+//     du client Prisma cloisonné (lib/tenant.ts). Ne jamais les lire avec le client brut.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Enums ─────────────────────────────
+
+enum Role {
+  OWNER
+  ADMIN
+  MEMBRE
+}
+
+enum Palier {
+  GRATUIT
+  ESSENTIEL
+  PRO
+  ENTREPRISE
+}
+
+enum StatutAbonnement {
+  ESSAI
+  ACTIF
+  SUSPENDU
+  RESILIE
+}
+
+enum TypeMarche {
+  TRAVAUX
+  FOURNITURES
+  SERVICES
+  ETUDES
+}
+
+enum StatutDossier {
+  A_QUALIFIER
+  GO
+  GO_CONDITIONNEL
+  NO_GO
+  EN_PREPARATION
+  DEPOSE
+  GAGNE
+  PERDU
+  INFRUCTUEUX
+  ABANDONNE
+}
+
+enum Verdict {
+  GO
+  GO_CONDITIONNEL
+  NO_GO_DEFAUT
+  NO_GO
+}
+
+enum StatutOffrePv {
+  RETENUE
+  EXCESSIVE
+  ANORMALEMENT_BASSE
+  ECARTEE_ADMIN
+  ECARTEE_TECHNIQUE
+  ATTRIBUTAIRE
+}
+
+enum StatutPiece {
+  MANQUANTE
+  EN_COURS
+  PRETE
+  EXPIREE
+}
+
+enum Meteo {
+  VERT
+  ORANGE
+  ROUGE
+}
+
+enum StatutTache {
+  A_FAIRE
+  EN_COURS
+  BLOQUEE
+  TERMINEE
+}
+
+enum TypeCaution {
+  PROVISOIRE
+  DEFINITIVE
+  RETENUE_GARANTIE
+  AVANCE
+}
+
+enum StatutCaution {
+  DEMANDEE
+  EMISE
+  EN_COURS
+  MAINLEVEE_DEMANDEE
+  LIBEREE
+}
+
+enum StatutDecompte {
+  BROUILLON
+  DEPOSE
+  VALIDE
+  ORDONNANCE
+  PAYE
+  CONTESTE
+}
+
+// ─────────────────── 0. Socle : cabinets, utilisateurs ───────────────────
+
+model Tenant {
+  id        String   @id @default(cuid())
+  nom       String
+  secteur   String?
+  ville     String?
+  ice       String? // Identifiant commun de l'entreprise
+  pays      String   @default("MA")
+  /// Profil utilisé pour la qualification des AO (métiers, références, moyens…) — lib/qualifier/profil.ts
+  profil    Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users              User[]
+  invitations        Invitation[]
+  abonnement         Abonnement?
+  auditLogs          AuditLog[]
+  profilsVeille      ProfilVeille[]
+  dossiers           Dossier[]
+  qualifications     Qualification[]
+  feedbacksRegle     FeedbackRegle[]
+  simulations        SimulationPrix[]
+  historiquesImports HistoriqueImport[]
+  piecesEntreprise   PieceEntreprise[]
+  piecesRequises     PieceRequise[]
+  postMortems        PostMortem[]
+  projets            Projet[]
+  taches             Tache[]
+  instances          InstanceGouvernance[]
+  cautions           Caution[]
+  decomptes          Decompte[]
+  comptes            Compte[]
+  signaux            Signal[]
+  partenaires        Partenaire[]
+  groupements        Groupement[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String    @unique
+  nom          String
+  motDePasse   String // hash bcrypt
+  role         Role      @default(MEMBRE)
+  derniereConn DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+model Invitation {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email     String
+  role      Role      @default(MEMBRE)
+  jeton     String    @unique
+  expireLe  DateTime
+  accepteLe DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId])
+}
+
+model Abonnement {
+  id                String           @id @default(cuid())
+  tenantId          String           @unique
+  tenant            Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  palier            Palier           @default(GRATUIT)
+  statut            StatutAbonnement @default(ESSAI)
+  dateDebut         DateTime         @default(now())
+  dateRenouvellement DateTime?
+}
+
+/// Traçabilité de toute écriture sur une donnée cliente (principe « aucune écriture silencieuse »).
+model AuditLog {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId   String?
+  action   String
+  cible    String
+  avant    Json?
+  apres    Json?
+  date     DateTime @default(now())
+
+  @@index([tenantId, date])
+}
+
+// ───────────── Données publiques partagées (veille et résultats) ─────────────
+
+model Acheteur {
+  id        String   @id @default(cuid())
+  nom       String
+  nomNormalise String @unique
+  type      String? // ministère, établissement public, collectivité, entreprise publique…
+  region    String?
+  avis      AvisAppelOffres[]
+}
+
+/// Un avis d'appel d'offres publié (portail des marchés publics ou acheteur privé).
+model AvisAppelOffres {
+  id             String     @id @default(cuid())
+  source         String // "pmmp", "ocp", "onee"…
+  referenceSource String
+  acheteurId     String?
+  acheteur       Acheteur?  @relation(fields: [acheteurId], references: [id])
+  objet          String
+  typeMarche     TypeMarche?
+  procedure      String?
+  categorie      String?
+  region         String?
+  estimation     Decimal?   @db.Decimal(16, 2)
+  cautionProvisoire Decimal? @db.Decimal(16, 2)
+  datePublication DateTime?
+  dateLimite     DateTime?
+  url            String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  pv       PvOuverture?
+  dossiers Dossier[]
+
+  @@unique([source, referenceSource])
+  @@index([dateLimite])
+}
+
+/// Résultat public : procès-verbal d'ouverture des plis (montants lus en séance publique).
+model PvOuverture {
+  id           String          @id @default(cuid())
+  avisId       String          @unique
+  avis         AvisAppelOffres @relation(fields: [avisId], references: [id], onDelete: Cascade)
+  dateSeance   DateTime?
+  prixReference Decimal?       @db.Decimal(16, 2)
+  infructueux  Boolean         @default(false)
+  offres       OffrePv[]
+}
+
+model Concurrent {
+  id           String    @id @default(cuid())
+  nom          String
+  nomNormalise String    @unique
+  ice          String?
+  offres       OffrePv[]
+}
+
+model OffrePv {
+  id           String         @id @default(cuid())
+  pvId         String
+  pv           PvOuverture    @relation(fields: [pvId], references: [id], onDelete: Cascade)
+  concurrentId String
+  concurrent   Concurrent     @relation(fields: [concurrentId], references: [id])
+  montant      Decimal        @db.Decimal(16, 2)
+  statut       StatutOffrePv?
+
+  @@index([concurrentId])
+}
+
+// ───────────────────── Module 1 — Veille ─────────────────────
+
+model ProfilVeille {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nom        String
+  motsCles   String[]
+  exclusions String[]
+  regions    String[]
+  typesMarche TypeMarche[]
+  estimationMin Decimal? @db.Decimal(16, 2)
+  estimationMax Decimal? @db.Decimal(16, 2)
+  alerteEmail Boolean @default(true)
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ───────────── Module 2 — Qualifier (dossier = AO suivi par un cabinet) ─────────────
+
+model Dossier {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  avisId      String?
+  avis        AvisAppelOffres? @relation(fields: [avisId], references: [id])
+  titre       String
+  acheteur    String?
+  typeMarche  TypeMarche?
+  texteCps    String?          @db.Text
+  estimation  Decimal?         @db.Decimal(16, 2)
+  dateDepot   DateTime?
+  statut      StatutDossier    @default(A_QUALIFIER)
+  sourceUrl   String?
+  creePar     String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  qualifications Qualification[]
+  simulations    SimulationPrix[]
+  piecesRequises PieceRequise[]
+  postMortem     PostMortem?
+  projet         Projet?
+
+  @@index([tenantId, statut])
+}
+
+model Qualification {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId    String
+  dossier      Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  scoreTotal   Int
+  scoreParBloc Json // { alignement, positionnement, references, competences, economie, risques }
+  killSwitch   String?
+  verdict      Verdict
+  motifs       Json
+  syntheseIa   Json? // extraction assistée : résumé, critères éliminatoires, références exigées
+  corrige      Boolean  @default(false)
+  creePar      String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, dossierId])
+}
+
+/// Correction manuelle d'un verdict : alimente l'ajustement de la grille dans le temps.
+model FeedbackRegle {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  qualificationId String
+  bloc            String?
+  verdictInitial  Verdict
+  verdictCorrige  Verdict
+  commentaire     String?
+  creePar         String?
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ───────────────────── Module 3 — Chiffrer ─────────────────────
+
+model SimulationPrix {
+  id               String     @id @default(cuid())
+  tenantId         String
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId        String?
+  dossier          Dossier?   @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  typeMarche       TypeMarche
+  estimation       Decimal    @db.Decimal(16, 2)
+  cout             Decimal?   @db.Decimal(16, 2)
+  hypotheses       Json // modèle de concurrence, grille, itérations, graine
+  prixRecommande   Decimal?   @db.Decimal(16, 2)
+  probabiliteGain  Float?
+  prixReferenceP50 Decimal?   @db.Decimal(16, 2)
+  courbe           Json // points (ratio, probabilité, marge espérée)
+  creePar          String?
+  createdAt        DateTime   @default(now())
+
+  @@index([tenantId])
+}
+
+/// Historique propre au cabinet (CSV importé) pour calibrer ses simulations.
+model HistoriqueImport {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nom       String
+  lignes    Json // [{ estimation, offres: number[], typeMarche, acheteur }]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ───────────────────── Module 4 — Constituer ─────────────────────
+
+/// Coffre-fort des pièces administratives de l'entreprise (attestations CNSS, fiscale, RC…).
+model PieceEntreprise {
+  id         String    @id @default(cuid())
+  tenantId   String
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type       String
+  libelle    String
+  fichierUrl String?
+  delivreLe  DateTime?
+  expireLe   DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, expireLe])
+}
+
+/// Checklist d'un dossier de réponse, déduite du règlement de consultation.
+model PieceRequise {
+  id          String      @id @default(cuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId   String
+  dossier     Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  enveloppe   String // administratif, technique, financier
+  libelle     String
+  eliminatoire Boolean    @default(false)
+  statut      StatutPiece @default(MANQUANTE)
+  pieceId     String?
+  responsable String?
+
+  @@index([tenantId, dossierId])
+}
+
+// ───────────────────── Module 5 — Résultats ─────────────────────
+
+model PostMortem {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId       String   @unique
+  dossier         Dossier  @relation(fields: [dossierId], references: [id], onDelete: Cascade)
+  notreMontant    Decimal? @db.Decimal(16, 2)
+  montantGagnant  Decimal? @db.Decimal(16, 2)
+  prixReference   Decimal? @db.Decimal(16, 2)
+  rang            Int?
+  causes          Json? // prix, technique, administratif…
+  enseignements   String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ───────────────────── Module 6 — Exécuter ─────────────────────
+
+model Projet {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId   String?   @unique
+  dossier     Dossier?  @relation(fields: [dossierId], references: [id])
+  nom         String
+  numeroMarche String?
+  montant     Decimal?  @db.Decimal(16, 2)
+  meteo       Meteo     @default(VERT)
+  dateOs      DateTime? // ordre de service de commencement
+  delaiJours  Int?
+  dateFin     DateTime?
+  createdAt   DateTime  @default(now())
+
+  taches     Tache[]
+  instances  InstanceGouvernance[]
+  cautions   Caution[]
+  decomptes  Decompte[]
+
+  @@index([tenantId])
+}
+
+model Tache {
+  id          String      @id @default(cuid())
+  tenantId    String
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projetId    String
+  projet      Projet      @relation(fields: [projetId], references: [id], onDelete: Cascade)
+  titre       String
+  responsable String?
+  echeance    DateTime?
+  statut      StatutTache @default(A_FAIRE)
+  jalonCle    Boolean     @default(false)
+
+  @@index([tenantId, projetId])
+}
+
+model InstanceGouvernance {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projetId   String
+  projet     Projet   @relation(fields: [projetId], references: [id], onDelete: Cascade)
+  type       String // comité de pilotage, comité technique…
+  date       DateTime
+  compteRendu String? @db.Text
+  decisions  Json?
+
+  @@index([tenantId, projetId])
+}
+
+model Caution {
+  id         String        @id @default(cuid())
+  tenantId   String
+  tenant     Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projetId   String?
+  projet     Projet?       @relation(fields: [projetId], references: [id], onDelete: Cascade)
+  dossierId  String?
+  type       TypeCaution
+  montant    Decimal       @db.Decimal(16, 2)
+  banque     String?
+  statut     StatutCaution @default(DEMANDEE)
+  emiseLe    DateTime?
+  mainleveePrevueLe DateTime?
+
+  @@index([tenantId])
+}
+
+// ───────────────────── Module 7 — Encaisser ─────────────────────
+
+model Decompte {
+  id           String         @id @default(cuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projetId     String
+  projet       Projet         @relation(fields: [projetId], references: [id], onDelete: Cascade)
+  numero       Int
+  montant      Decimal        @db.Decimal(16, 2)
+  statut       StatutDecompte @default(BROUILLON)
+  deposeLe     DateTime?
+  payeLe       DateTime?
+  /// Intérêts moratoires calculés (à sourcer sur le texte réglementaire en vigueur avant activation).
+  interetsMoratoires Decimal? @db.Decimal(16, 2)
+
+  @@unique([projetId, numero])
+  @@index([tenantId, statut])
+}
+
+// ───────────────── Module 8 — Comptes et groupements ─────────────────
+
+model Compte {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nom             String
+  secteur         String?
+  statutRelation  String   @default("prospect")
+  scoreInterne    Int?
+  planStrategique String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  signaux Signal[]
+
+  @@index([tenantId])
+}
+
+model Signal {
+  id       String   @id @default(cuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  compteId String
+  compte   Compte   @relation(fields: [compteId], references: [id], onDelete: Cascade)
+  type     String
+  contenu  String   @db.Text
+  source   String?
+  date     DateTime @default(now())
+
+  @@index([tenantId, compteId])
+}
+
+/// Partenaires de groupement, co-traitants et sous-traitants connus du cabinet.
+model Partenaire {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  nom         String
+  specialites String[]
+  contact     String?
+  notes       String?  @db.Text
+
+  @@index([tenantId])
+}
+
+model Groupement {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dossierId String?
+  type      String // conjoint, solidaire
+  membres   Json // [{ partenaireId, role, part }]
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
