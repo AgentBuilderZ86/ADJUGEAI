@@ -16,7 +16,16 @@ Pour les autres pièces (modèle 9, certificats de qualification, agréments…)
 Le décret apprécie la validité des attestations fiscale et CNSS **à la date de leur production au maître d'ouvrage** ;
 Adjugé l'évalue à la date limite de dépôt, ce qui est prudent mais pas exact : c'est indiqué à l'écran.
 
-Les fichiers eux-mêmes ne sont pas encore stockés (prochaine étape : Netlify Blobs).
+### Fichiers joints
+
+- Stockage : Netlify Blobs, magasin `coffre-fort` (`lib/stockage.ts`), clé `cabinet/pièce/uuid`. En développement,
+  disque local `.stockage/` (ou `ADJUGE_STOCKAGE_LOCAL`) ; en production hors Netlify, l'envoi est refusé proprement.
+- Formats : PDF, PNG, JPEG, **reconnus à leur signature** (pas à l'extension), 4 Mo au plus. Nom de fichier assaini.
+- Accès : `GET /api/coffre/[id]`, réservé aux utilisateurs connectés du cabinet (401 sinon, 404 pour un autre cabinet),
+  `Cache-Control: private, no-store`, `nosniff`, images servies en document « sandbox ».
+- Remplacement : le nouveau fichier est écrit avant la mise à jour de la base, l'ancien effacé ensuite ; la suppression
+  d'une pièce efface son fichier. Chaque ajout ou remplacement est journalisé.
+- Les deploy previews écrivent dans le même magasin que la production (clés distinctes, jamais partagées entre cabinets).
 
 ## Liste des pièces d'un dossier (`/constituer/[id]`)
 

@@ -5,12 +5,15 @@ import {
   coffreFort,
   dossiersEnConstitution,
   enregistrerPiece,
+  joindreFichier,
   listeDuDossier,
+  lireFichier,
   modifierExigence,
   preparerListe,
   supprimerPiece,
 } from "@/lib/constituer/service";
 import { tenantDb } from "@/lib/tenant";
+import { stockageMemoire } from "@/lib/stockage";
 
 const base = new PrismaClient();
 let A: string;
@@ -105,10 +108,43 @@ describe.skipIf(!process.env.DATABASE_URL)("constituer", () => {
     await expect(modifierExigence({ db: tenantDb(base, B), id: visite.id, statut: "MANQUANTE" })).rejects.toThrow("introuvable");
   });
 
+  it("joint, remplace et sert le fichier d'une pièce, au seul cabinet", async () => {
+    const db = tenantDb(base, A);
+    const s = stockageMemoire();
+    const piece = await enregistrerPiece({ db, tenantId: A, userId: userA, donnees: { type: "REGISTRE_COMMERCE", delivreLe: null, expireLe: null } });
+    const pdf = (t: string) => new TextEncoder().encode(`%PDF-1.7 ${t}`).buffer;
+
+    const f = await joindreFichier({ db, tenantId: A, userId: userA, pieceId: piece.id, fichier: { nom: "Modèle 9.pdf", octets: pdf("v1") }, stockage: s });
+    expect(f).toMatchObject({ type: "application/pdf", nom: "Modele-9.pdf" });
+    expect(s.cles()).toHaveLength(1);
+    expect(s.cles()[0].startsWith(`${A}/${piece.id}/`)).toBe(true);
+
+    await joindreFichier({ db, tenantId: A, userId: userA, pieceId: piece.id, fichier: { nom: "v2.pdf", octets: pdf("v2") }, stockage: s });
+    expect(s.cles()).toHaveLength(1); // l'ancien fichier est effacé
+    const lu = await lireFichier(db, piece.id, s);
+    expect(new TextDecoder().decode(lu!.octets)).toBe("%PDF-1.7 v2");
+    expect((await coffreFort(db, maintenant)).find((p) => p.id === piece.id)?.fichier).toMatchObject({ nom: "v2.pdf" });
+
+    // Un autre cabinet ne peut ni lire ni remplacer le fichier.
+    expect(await lireFichier(tenantDb(base, B), piece.id, s)).toBeNull();
+    await expect(
+      joindreFichier({ db: tenantDb(base, B), tenantId: B, userId: userA, pieceId: piece.id, fichier: { nom: "x.pdf", octets: pdf("x") }, stockage: s }),
+    ).rejects.toThrow("introuvable");
+
+    // Un faux PDF est refusé et rien n'est écrit.
+    await expect(
+      joindreFichier({ db, tenantId: A, userId: userA, pieceId: piece.id, fichier: { nom: "x.pdf", octets: new TextEncoder().encode("<html>").buffer }, stockage: s }),
+    ).rejects.toThrow("Format non accepté");
+    expect(s.cles()).toHaveLength(1);
+
+    await supprimerPiece({ db, tenantId: A, userId: userA, pieceId: piece.id, stockage: s });
+    expect(s.cles()).toHaveLength(0);
+  });
+
   it("détache la pièce supprimée des listes", async () => {
     const db = tenantDb(base, A);
     const cnss = (await coffreFort(db, maintenant)).find((p) => p.type === "ATTESTATION_CNSS")!;
-    await supprimerPiece({ db, tenantId: A, userId: userA, pieceId: cnss.id });
+    await supprimerPiece({ db, tenantId: A, userId: userA, pieceId: cnss.id, stockage: stockageMemoire() });
     const liste = (await listeDuDossier(db, dossierId, maintenant))!;
     expect(liste.lignes.find((l) => l.libelle.includes("CNSS"))).toMatchObject({ piece: null, statut: "MANQUANTE" });
   });

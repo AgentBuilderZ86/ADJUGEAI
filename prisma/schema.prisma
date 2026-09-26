@@ -432,6 +432,11 @@ model PieceEntreprise {
   /// Numéro ou référence de la pièce (n° d'attestation, de certificat…)
   numero     String?
   fichierUrl String?
+  /// Fichier joint (lib/stockage.ts) : clé cabinet/pièce/uuid, nom sûr, type reconnu à la signature, taille en octets
+  fichierCle    String?
+  fichierNom    String?
+  fichierType   String?
+  fichierTaille Int?
   delivreLe  DateTime?
   /// Échéance saisie ; à défaut, déduite de la date de délivrance pour les pièces à durée réglementaire
   expireLe   DateTime?

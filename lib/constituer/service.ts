@@ -1,7 +1,10 @@
+import { randomUUID } from "node:crypto";
 import type { StatutPiece } from "@prisma/client";
 import { z } from "zod";
+import type { Stockage } from "@/lib/stockage";
 import type { TenantDb } from "@/lib/tenant";
 import { ENVELOPPES, exigencesDeBase, REFERENCE_DECRET, TYPE_PAR_CLE, type CleEnveloppe } from "./catalogue";
+import { verifierFichier } from "./fichier";
 import { echeance, etatA, meilleurePiece, type EtatValidite } from "./validite";
 
 // ───────────────────────────── Coffre-fort ─────────────────────────────
@@ -33,8 +36,8 @@ export async function enregistrerPiece(params: { db: TenantDb; tenantId: string;
   });
 }
 
-export async function supprimerPiece(params: { db: TenantDb; tenantId: string; userId: string; pieceId: string }) {
-  const { db, tenantId, userId, pieceId } = params;
+export async function supprimerPiece(params: { db: TenantDb; tenantId: string; userId: string; pieceId: string; stockage: Stockage }) {
+  const { db, tenantId, userId, pieceId, stockage } = params;
   const p = await db.pieceEntreprise.findUnique({ where: { id: pieceId } });
   if (!p) throw new Error("Pièce introuvable.");
   await db.$transaction([
@@ -42,6 +45,48 @@ export async function supprimerPiece(params: { db: TenantDb; tenantId: string; u
     db.pieceEntreprise.delete({ where: { id: p.id } }),
     db.auditLog.create({ data: { tenantId, userId, action: "piece.suppression", cible: `PieceEntreprise:${p.id}`, avant: { type: p.type, libelle: p.libelle } } }),
   ]);
+  if (p.fichierCle) await stockage.supprimer(p.fichierCle);
+}
+
+/**
+ * Joint (ou remplace) le fichier d'une pièce. Le fichier est écrit avant la mise à jour de la base,
+ * l'ancien n'est effacé qu'ensuite : une panne laisse au pire un fichier orphelin, jamais une pièce sans fichier.
+ */
+export async function joindreFichier(params: {
+  db: TenantDb;
+  tenantId: string;
+  userId: string;
+  pieceId: string;
+  fichier: { nom: string; octets: ArrayBuffer };
+  stockage: Stockage;
+}) {
+  const { db, tenantId, userId, pieceId, fichier, stockage } = params;
+  const p = await db.pieceEntreprise.findUnique({ where: { id: pieceId } });
+  if (!p) throw new Error("Pièce introuvable.");
+  const f = verifierFichier(fichier.nom, fichier.octets);
+  const cle = `${tenantId}/${p.id}/${randomUUID()}`;
+  await stockage.ecrire(cle, fichier.octets);
+  try {
+    await db.$transaction([
+      db.pieceEntreprise.update({ where: { id: p.id }, data: { fichierCle: cle, fichierNom: f.nom, fichierType: f.type, fichierTaille: f.taille } }),
+      db.auditLog.create({
+        data: { tenantId, userId, action: p.fichierCle ? "piece.fichier.remplacement" : "piece.fichier.ajout", cible: `PieceEntreprise:${p.id}`, apres: { nom: f.nom, taille: f.taille } },
+      }),
+    ]);
+  } catch (e) {
+    await stockage.supprimer(cle);
+    throw e;
+  }
+  if (p.fichierCle) await stockage.supprimer(p.fichierCle);
+  return f;
+}
+
+/** Fichier d'une pièce du cabinet (le client cloisonné garantit qu'elle lui appartient). */
+export async function lireFichier(db: TenantDb, pieceId: string, stockage: Stockage) {
+  const p = await db.pieceEntreprise.findUnique({ where: { id: pieceId } });
+  if (!p?.fichierCle || !p.fichierType || !p.fichierNom) return null;
+  const octets = await stockage.lire(p.fichierCle);
+  return octets ? { octets, type: p.fichierType, nom: p.fichierNom } : null;
 }
 
 export interface PieceCoffre {
@@ -53,6 +98,7 @@ export interface PieceCoffre {
   expireLe: Date | null;
   echeance: Date | null;
   etat: EtatValidite;
+  fichier: { nom: string; taille: number } | null;
 }
 
 /** Pièces du cabinet avec leur état à ce jour, les plus urgentes d'abord. */
@@ -60,7 +106,7 @@ export async function coffreFort(db: TenantDb, maintenant = new Date()): Promise
   const pieces = await db.pieceEntreprise.findMany({ orderBy: { createdAt: "desc" } });
   const rang: Record<EtatValidite, number> = { expiree: 0, "a-renouveler": 1, valide: 2, "sans-echeance": 3 };
   return pieces
-    .map((p) => ({ id: p.id, type: p.type, libelle: p.libelle, numero: p.numero, delivreLe: p.delivreLe, expireLe: p.expireLe, echeance: echeance(p), etat: etatA(p, maintenant) }))
+    .map((p) => ({ id: p.id, type: p.type, libelle: p.libelle, numero: p.numero, delivreLe: p.delivreLe, expireLe: p.expireLe, echeance: echeance(p), etat: etatA(p, maintenant), fichier: p.fichierCle && p.fichierNom ? { nom: p.fichierNom, taille: p.fichierTaille ?? 0 } : null }))
     .sort((a, b) => rang[a.etat] - rang[b.etat] || (a.echeance?.getTime() ?? Infinity) - (b.echeance?.getTime() ?? Infinity));
 }
 
@@ -159,11 +205,11 @@ export interface LigneListe {
   statutSaisi: StatutPiece;
   /** Statut retenu : celui du coffre-fort quand une pièce y correspond, sinon celui saisi */
   statut: StatutPiece;
-  piece: { libelle: string; echeance: Date | null; etat: EtatValidite } | null;
+  piece: { id: string; libelle: string; echeance: Date | null; etat: EtatValidite; fichier: boolean } | null;
 }
 
 type Exigence = { id: string; enveloppe: string; libelle: string; reference: string | null; eliminatoire: boolean; responsable: string | null; statut: StatutPiece; typePiece: string | null };
-type PieceBrute = { type: string; libelle: string; delivreLe: Date | null; expireLe: Date | null };
+type PieceBrute = { id: string; type: string; libelle: string; delivreLe: Date | null; expireLe: Date | null; fichierCle: string | null };
 
 function rapprocher(e: Exigence, coffre: PieceBrute[], dateReference: Date): LigneListe {
   const p = e.typePiece ? meilleurePiece(coffre.filter((c) => c.type === e.typePiece)) : null;
@@ -177,7 +223,7 @@ function rapprocher(e: Exigence, coffre: PieceBrute[], dateReference: Date): Lig
     responsable: e.responsable,
     statutSaisi: e.statut,
     statut: p ? (etat === "expiree" ? "EXPIREE" : "PRETE") : e.statut,
-    piece: p ? { libelle: p.libelle, echeance: echeance(p), etat: etat! } : null,
+    piece: p ? { id: p.id, libelle: p.libelle, echeance: echeance(p), etat: etat!, fichier: Boolean(p.fichierCle) } : null,
   };
 }
 
