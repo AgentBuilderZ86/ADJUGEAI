@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireTenant } from "@/lib/session";
 import { mad } from "@/lib/utils";
 import { avisPertinents, criteresDuProfil, derniereCollecte } from "@/lib/veille/service";
+import { dateFr, dateHeureFr } from "@/lib/dates";
 
 export const metadata = { title: "Veille" };
 
@@ -36,7 +37,7 @@ export default async function Veille() {
           <p className="mt-1 text-xs text-slate-500">
             {total.toLocaleString("fr-FR")} avis ouverts suivis ·{" "}
             {collecte
-              ? `dernière collecte le ${collecte.debut.toLocaleString("fr-FR")} (${collecte.statut === "ok" ? "réussie" : collecte.statut})`
+              ? `dernière collecte le ${dateHeureFr(collecte.debut)} (${collecte.statut === "ok" ? "réussie" : collecte.statut})`
               : "aucune collecte encore"}
           </p>
         </div>
@@ -88,14 +89,14 @@ export default async function Veille() {
                       {a.cautionProvisoire && <span>Caution : {mad(a.cautionProvisoire)}</span>}
                       {a.dateLimite && (
                         <span className={j !== null && j <= 7 ? "font-medium text-red-700" : ""}>
-                          Remise des plis : {a.dateLimite.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}
+                          Remise des plis : {dateHeureFr(a.dateLimite)}
                           {j !== null && ` (J-${j})`}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
                       Source : Portail marocain des marchés publics (TGR)
-                      {a.datePublication && `, publié le ${a.datePublication.toLocaleDateString("fr-FR")}`} ·{" "}
+                      {a.datePublication && `, publié le ${dateFr(a.datePublication)}`} ·{" "}
                       {a.url && (
                         <a href={a.url} target="_blank" rel="noopener noreferrer" className="underline">
                           voir l&apos;avis et le dossier de consultation

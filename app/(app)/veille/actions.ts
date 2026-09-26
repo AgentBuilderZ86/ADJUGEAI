@@ -10,7 +10,7 @@ import { lireListeTermes } from "@/lib/veille/correspondance";
 import { CollecteInterrompue } from "@/lib/veille/pmmp";
 import { collecter, CollecteTropRapprochee, enregistrerProfilVeille, suivreAvis } from "@/lib/veille/service";
 
-export type Etat = { erreur?: string; ok?: string } | undefined;
+export type Etat = { erreur?: string; ok?: string; info?: string } | undefined;
 
 const TYPES: TypeMarche[] = ["TRAVAUX", "FOURNITURES", "SERVICES", "ETUDES"];
 
@@ -57,7 +57,8 @@ export async function actualiser(): Promise<Etat> {
     revalidatePath("/veille");
     return { ok: `${j.lus} avis lus, dont ${j.nouveaux} nouveaux.` };
   } catch (e) {
-    if (e instanceof CollecteTropRapprochee || e instanceof CollecteInterrompue) return { erreur: e.message };
+    if (e instanceof CollecteTropRapprochee) return { info: e.message };
+    if (e instanceof CollecteInterrompue) return { erreur: `${e.message} Réessayez plus tard.` };
     console.error("[veille] actualisation", e);
     return { erreur: "La collecte a échoué. Réessayez plus tard." };
   }

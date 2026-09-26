@@ -4,6 +4,7 @@ import { BoutonSupprimerImport, FormulaireImport } from "@/components/chiffrer/i
 import { historiqueDuCabinet, resumeHistorique } from "@/lib/chiffrer/service";
 import { requireTenant } from "@/lib/session";
 import { pct } from "@/lib/utils";
+import { dateFr } from "@/lib/dates";
 
 export const metadata = { title: "Historique de l'entreprise" };
 
@@ -61,7 +62,7 @@ export default async function Historique() {
                 <span>
                   <span className="font-medium">{i.nom}</span>{" "}
                   <span className="text-slate-500">
-                    · {Array.isArray(i.lignes) ? i.lignes.length : 0} AO · {i.createdAt.toLocaleDateString("fr-FR")}
+                    · {Array.isArray(i.lignes) ? i.lignes.length : 0} AO · {dateFr(i.createdAt)}
                   </span>
                 </span>
                 <BoutonSupprimerImport id={i.id} />

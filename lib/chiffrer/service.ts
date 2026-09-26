@@ -3,6 +3,7 @@ import { z } from "zod";
 import { calibrer, simulerPrix, type ModeleConcurrence, type ResultatHistorique } from "@/lib/marches/simulation";
 import { PALIERS } from "@/lib/paliers";
 import type { TenantDb } from "@/lib/tenant";
+import { dateFr } from "@/lib/dates";
 
 export class QuotaSimulationsAtteint extends Error {}
 
@@ -134,7 +135,7 @@ const schemaLignes = z
 export async function importerHistorique(params: { db: TenantDb; tenantId: string; userId: string; nom: string; lignes: LigneHistorique[] }) {
   const { db, tenantId, userId } = params;
   const lignes = schemaLignes.parse(params.lignes);
-  const nom = params.nom.trim() || `Import du ${new Date().toLocaleDateString("fr-FR")}`;
+  const nom = params.nom.trim() || `Import du ${dateFr(new Date())}`;
   return db.$transaction(async (tx) => {
     const imp = await tx.historiqueImport.create({ data: { tenantId, nom, lignes } });
     await tx.auditLog.create({
