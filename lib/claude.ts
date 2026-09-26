@@ -30,15 +30,25 @@ export function claudeDisponible() {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/** Message d'erreur renvoyé par l'API (ne contient jamais la clé). */
+function detailApi(e: InstanceType<typeof Anthropic.APIError>): string {
+  const corps = e.error as { error?: { message?: string } } | undefined;
+  return (corps?.error?.message ?? e.message ?? "").slice(0, 240);
+}
+
 /** Traduit les erreurs de l'API en messages exploitables par l'utilisateur. */
 export function messageErreurClaude(e: unknown): string {
   if (e instanceof ClaudeNonConfigure) return e.message;
+  if (e instanceof Anthropic.APIError && /credit balance/i.test(detailApi(e))) {
+    return "Crédit API Anthropic insuffisant : rechargez le compte dans la console Anthropic (Plans & Billing), puis réessayez.";
+  }
   if (e instanceof Anthropic.APIConnectionTimeoutError) {
     return "L'analyse a dépassé le délai autorisé. Essayez avec le seul CPS ou le règlement de consultation, plutôt que le dossier complet.";
   }
   if (e instanceof Anthropic.RateLimitError) return "Service d'analyse momentanément saturé. Réessayez dans une minute.";
   if (e instanceof Anthropic.AuthenticationError) return "Clé API Anthropic invalide : contactez l'administrateur.";
-  if (e instanceof Anthropic.BadRequestError) return "Le document n'a pas pu être analysé (format ou taille). Essayez de coller le texte.";
-  if (e instanceof Anthropic.APIError) return `Service d'analyse indisponible (erreur ${e.status ?? "réseau"}). Réessayez plus tard.`;
+  if (e instanceof Anthropic.NotFoundError) return `Modèle d'analyse indisponible pour ce compte (${MODELE_CLAUDE}). Détail : ${detailApi(e)}`;
+  if (e instanceof Anthropic.BadRequestError) return `Requête refusée par le service d'analyse. Détail : ${detailApi(e)}`;
+  if (e instanceof Anthropic.APIError) return `Service d'analyse indisponible (erreur ${e.status ?? "réseau"}). Détail : ${detailApi(e)}`;
   return e instanceof Error ? e.message : "Erreur inattendue pendant l'analyse.";
 }
