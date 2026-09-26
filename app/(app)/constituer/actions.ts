@@ -5,6 +5,7 @@ import { z } from "zod";
 import {
   ajouterExigence,
   enregistrerPiece,
+  joindreFichier,
   modifierExigence,
   preparerListe,
   schemaExigence,
@@ -12,7 +13,9 @@ import {
   supprimerExigence,
   supprimerPiece,
 } from "@/lib/constituer/service";
+import { FichierRefuse } from "@/lib/constituer/fichier";
 import { requireTenant } from "@/lib/session";
+import { stockage, StockageIndisponible } from "@/lib/stockage";
 
 export type Etat = { erreur?: string; ok?: string } | undefined;
 
@@ -27,6 +30,18 @@ function premiereErreur(e: unknown) {
   return e instanceof z.ZodError ? (e.issues[0]?.message ?? "Saisie invalide.") : (e as Error).message;
 }
 
+/** Fichier facultatif d'un formulaire (champ « fichier »). */
+function lireFichier(form: FormData) {
+  const f = form.get("fichier");
+  return f instanceof File && f.size > 0 ? f : null;
+}
+
+function erreurFichier(e: unknown) {
+  if (e instanceof FichierRefuse || e instanceof StockageIndisponible) return e.message;
+  console.error("[coffre-fort] fichier", e);
+  return "Le fichier n'a pas pu être enregistré. Réessayez.";
+}
+
 export async function ajouterPiece(_: Etat, form: FormData): Promise<Etat> {
   const { db, tenantId, user } = await requireTenant();
   const donnees = {
@@ -38,24 +53,52 @@ export async function ajouterPiece(_: Etat, form: FormData): Promise<Etat> {
   };
   const p = schemaPiece.safeParse(donnees);
   if (!p.success) return { erreur: p.error.issues[0]?.message ?? "Saisie invalide." };
+  let pieceId: string;
   try {
-    await enregistrerPiece({ db, tenantId, userId: user.id, donnees: p.data });
+    pieceId = (await enregistrerPiece({ db, tenantId, userId: user.id, donnees: p.data })).id;
   } catch (e) {
     return { erreur: premiereErreur(e) };
   }
   revalidatePath("/constituer", "layout");
-  return { ok: "Pièce ajoutée au coffre-fort." };
+  const fichier = lireFichier(form);
+  if (!fichier) return { ok: "Pièce ajoutée au coffre-fort." };
+  try {
+    await joindreFichier({ db, tenantId, userId: user.id, pieceId, fichier: { nom: fichier.name, octets: await fichier.arrayBuffer() }, stockage: stockage() });
+  } catch (e) {
+    return { erreur: `Pièce ajoutée, mais sans fichier : ${erreurFichier(e)}` };
+  }
+  return { ok: "Pièce et fichier ajoutés au coffre-fort." };
 }
 
 export async function retirerPiece(_: Etat, form: FormData): Promise<Etat> {
   const { db, tenantId, user } = await requireTenant();
   try {
-    await supprimerPiece({ db, tenantId, userId: user.id, pieceId: String(form.get("pieceId") ?? "") });
+    await supprimerPiece({ db, tenantId, userId: user.id, pieceId: String(form.get("pieceId") ?? ""), stockage: stockage() });
   } catch (e) {
     return { erreur: premiereErreur(e) };
   }
   revalidatePath("/constituer", "layout");
   return { ok: "Pièce retirée." };
+}
+
+export async function joindre(_: Etat, form: FormData): Promise<Etat> {
+  const { db, tenantId, user } = await requireTenant();
+  const fichier = lireFichier(form);
+  if (!fichier) return { erreur: "Choisissez un fichier." };
+  try {
+    await joindreFichier({
+      db,
+      tenantId,
+      userId: user.id,
+      pieceId: String(form.get("pieceId") ?? ""),
+      fichier: { nom: fichier.name, octets: await fichier.arrayBuffer() },
+      stockage: stockage(),
+    });
+  } catch (e) {
+    return { erreur: e instanceof Error && e.message === "Pièce introuvable." ? e.message : erreurFichier(e) };
+  }
+  revalidatePath("/constituer", "layout");
+  return { ok: "Fichier enregistré." };
 }
 
 export async function preparer(_: Etat, form: FormData): Promise<Etat> {

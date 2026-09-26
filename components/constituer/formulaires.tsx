@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import type { StatutPiece } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/field";
-import { ajouter, ajouterPiece, modifier, preparer, retirer, retirerPiece } from "@/app/(app)/constituer/actions";
+import { ajouter, ajouterPiece, joindre, modifier, preparer, retirer, retirerPiece } from "@/app/(app)/constituer/actions";
 import { ENVELOPPES, TYPES_PIECE } from "@/lib/constituer/catalogue";
 
 function Message({ etat }: { etat?: { erreur?: string; ok?: string } }) {
@@ -71,6 +71,11 @@ function ChampsPiece() {
           Sans échéance saisie, elle est calculée : {t.validiteMois} mois après la délivrance ({t.source} du décret).
         </p>
       )}
+      <div>
+        <Label htmlFor="fichier">Fichier (facultatif)</Label>
+        <Input id="fichier" name="fichier" type="file" accept="application/pdf,image/png,image/jpeg" className="py-1.5" />
+        <p className="mt-1 text-xs text-slate-500">PDF, PNG ou JPEG, 4 Mo au plus.</p>
+      </div>
     </>
   );
 }
@@ -89,6 +94,29 @@ export function BoutonRetirerPiece({ pieceId }: { pieceId: string }) {
         Retirer
       </button>
       {etat?.erreur && <p className="text-xs text-red-700">{etat.erreur}</p>}
+    </form>
+  );
+}
+
+export function JoindreFichier({ pieceId, remplacer }: { pieceId: string; remplacer: boolean }) {
+  const [etat, action, enCours] = useActionState(joindre, undefined);
+  return (
+    <form action={action} className="text-xs">
+      <input type="hidden" name="pieceId" value={pieceId} />
+      <label className="cursor-pointer text-marque-700 underline">
+        {enCours ? "Envoi…" : remplacer ? "Remplacer le fichier" : "Joindre le fichier"}
+        <input
+          type="file"
+          name="fichier"
+          accept="application/pdf,image/png,image/jpeg"
+          className="sr-only"
+          disabled={enCours}
+          onChange={(e) => {
+            if (e.currentTarget.files?.length) e.currentTarget.form?.requestSubmit();
+          }}
+        />
+      </label>
+      {etat?.erreur && <p className="text-red-700">{etat.erreur}</p>}
     </form>
   );
 }

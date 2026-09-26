@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { BoutonRetirerPiece, FormulairePiece } from "@/components/constituer/formulaires";
+import { BoutonRetirerPiece, FormulairePiece, JoindreFichier } from "@/components/constituer/formulaires";
 import { BadgeEtat } from "@/components/constituer/badges";
 import { TYPE_PAR_CLE } from "@/lib/constituer/catalogue";
 import { coffreFort, dossiersEnConstitution } from "@/lib/constituer/service";
@@ -91,6 +91,16 @@ export default async function Constituer() {
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                      {p.fichier ? (
+                        <a href={`/api/coffre/${p.id}`} target="_blank" rel="noopener" className="text-marque-700 underline">
+                          {p.fichier.nom} ({Math.max(1, Math.round(p.fichier.taille / 1024)).toLocaleString("fr-FR")} Ko)
+                        </a>
+                      ) : (
+                        <span className="text-slate-500">Aucun fichier</span>
+                      )}
+                      <JoindreFichier pieceId={p.id} remplacer={Boolean(p.fichier)} />
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <BadgeEtat etat={p.etat} />

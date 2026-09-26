@@ -90,6 +90,11 @@ export default async function PiecesDossier({ params }: { params: Promise<{ id: 
                             Coffre-fort : {l.piece.libelle}
                             {l.piece.echeance && `, valable jusqu'au ${dateFr(l.piece.echeance)}`}
                             <BadgeEtat etat={l.piece.etat} />
+                            {l.piece.fichier && (
+                              <a href={`/api/coffre/${l.piece.id}`} target="_blank" rel="noopener" className="text-marque-700 underline print:hidden">
+                                voir le fichier
+                              </a>
+                            )}
                           </p>
                         )}
                         {!l.piece && l.statut !== "PRETE" && l.reference?.includes("art. 28-I-A-2") && (
