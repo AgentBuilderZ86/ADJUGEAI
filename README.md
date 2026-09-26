@@ -6,6 +6,7 @@ réglementaire (décret 2-22-431)**, constitution du dossier, résultats, exécu
 - Vision, cibles, modèle économique et feuille de route : [`docs/VISION.md`](docs/VISION.md)
 - Règles du décret implémentées, avec articles et points d'interprétation : [`docs/REGLEMENTATION.md`](docs/REGLEMENTATION.md)
 - Déploiement Netlify (variables, base, vérifications) : [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)
+- Veille (cadre juridique, règles de collecte) : [`docs/VEILLE.md`](docs/VEILLE.md)
 
 ## État — vague 0 et début de vague 1
 

@@ -5,12 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import { lancerQualification } from "@/app/(app)/qualifier/actions";
 
-export function FormulaireQualification({ desactive }: { desactive?: string }) {
+export function FormulaireQualification({ desactive, dossierId }: { desactive?: string; dossierId?: string }) {
   const [etat, action, enCours] = useActionState(lancerQualification, undefined);
   const [nomFichier, setNomFichier] = useState<string | null>(null);
 
   return (
     <form action={action} className="space-y-4" key={etat?.erreur}>
+      {dossierId && <input type="hidden" name="dossierId" value={dossierId} />}
       <div>
         <Label htmlFor="titre">Intitulé (facultatif)</Label>
         <Input id="titre" name="titre" defaultValue={etat?.valeurs?.titre} placeholder="Déduit automatiquement de l'AO si vide" />

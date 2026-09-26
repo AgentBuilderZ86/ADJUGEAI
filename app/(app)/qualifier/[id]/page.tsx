@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { LienBouton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BoutonImprimer } from "@/components/bouton-imprimer";
@@ -32,7 +32,8 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
     },
   });
   const q = dossier?.qualifications[0];
-  if (!dossier || !q) notFound();
+  if (!dossier) notFound();
+  if (!q) redirect(`/qualifier?dossier=${dossier.id}`); // dossier suivi depuis la veille, pas encore qualifié
 
   const s = q.syntheseIa as unknown as Synthese;
   const m = q.motifs as unknown as Motifs;

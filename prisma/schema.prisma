@@ -232,11 +232,14 @@ model AvisAppelOffres {
   procedure      String?
   categorie      String?
   region         String?
+  lieu           String?
   estimation     Decimal?   @db.Decimal(16, 2)
   cautionProvisoire Decimal? @db.Decimal(16, 2)
   datePublication DateTime?
   dateLimite     DateTime?
   url            String?
+  /// Date de lecture de la fiche détail (estimation, caution) ; null = à compléter
+  detailLe       DateTime?
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
@@ -245,6 +248,23 @@ model AvisAppelOffres {
 
   @@unique([source, referenceSource])
   @@index([dateLimite])
+  @@index([datePublication])
+}
+
+/// Journal des collectes (supervision, cadence) — données techniques, sans donnée cliente.
+model CollecteVeille {
+  id        String    @id @default(cuid())
+  source    String
+  debut     DateTime  @default(now())
+  fin       DateTime?
+  statut    String    @default("en_cours") // en_cours, ok, interrompue, erreur
+  lus       Int       @default(0)
+  nouveaux  Int       @default(0)
+  details   Int       @default(0)
+  message   String?
+  declenchePar String? // "planification" ou identifiant utilisateur
+
+  @@index([source, debut])
 }
 
 /// Résultat public : procès-verbal d'ouverture des plis (montants lus en séance publique).

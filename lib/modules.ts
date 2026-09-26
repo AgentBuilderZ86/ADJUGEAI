@@ -1,6 +1,6 @@
 /** Les 8 modules du cycle complet, avec leur vague de livraison (voir docs/VISION.md). */
 export const MODULES = [
-  { cle: "veille", nom: "Veille", promesse: "Tous les AO utiles, filtrés sur votre métier, avec alertes.", vague: 1, disponibilite: "Vague 1" },
+  { cle: "veille", nom: "Veille", promesse: "Tous les AO utiles, filtrés sur votre métier, avec alertes.", vague: 1, disponibilite: "Disponible" },
   { cle: "qualifier", nom: "Qualifier", promesse: "GO / NO GO argumenté en 5 minutes : grille à 6 blocs et critères éliminatoires.", vague: 1, disponibilite: "Disponible" },
   { cle: "chiffrer", nom: "Chiffrer", promesse: "Prix de référence probable et prix optimal à déposer, par simulation.", vague: 1, disponibilite: "Disponible" },
   { cle: "constituer", nom: "Constituer", promesse: "Pièces exigées, attestations à renouveler, mémoire technique, conformité au RC.", vague: 2, disponibilite: "Vague 2" },

@@ -38,9 +38,13 @@ export async function qualifierAo(params: {
   userId: string;
   entree: Omit<EntreeAnalyse, "profil">;
   titre?: string;
+  /** Dossier existant à compléter (ex. suivi depuis la veille) ; sinon un dossier est créé. */
+  dossierId?: string;
   analyser: (entree: EntreeAnalyse) => Promise<AnalyseAo>;
 }) {
   const { db, tenantId, userId, entree, analyser } = params;
+  const existant = params.dossierId ? await db.dossier.findUnique({ where: { id: params.dossierId } }) : null;
+  if (params.dossierId && !existant) throw new Error("Dossier introuvable.");
   const quota = await quotaQualifications(db, tenantId);
   if (quota.restantes === 0) {
     throw new QuotaAtteint(
@@ -74,19 +78,33 @@ export async function qualifierAo(params: {
   const f = analyse.fiche;
 
   return db.$transaction(async (tx) => {
-    const dossier = await tx.dossier.create({
-      data: {
-        tenantId,
-        titre: params.titre?.trim() || f.objet.slice(0, 200),
-        acheteur: f.acheteur,
-        typeMarche: f.typeMarche,
-        texteCps: entree.texte?.trim() || null,
-        estimation: f.estimationMad,
-        dateDepot: dateOuNull(f.dateLimite),
-        statut: STATUT_PAR_VERDICT[grille.verdict],
-        creePar: userId,
-      },
-    });
+    const dossier = existant
+      ? await tx.dossier.update({
+          where: { id: existant.id },
+          data: {
+            // Les informations publiées (veille) priment ; l'analyse complète ce qui manque.
+            titre: params.titre?.trim() || existant.titre,
+            acheteur: existant.acheteur ?? f.acheteur,
+            typeMarche: existant.typeMarche ?? f.typeMarche,
+            texteCps: entree.texte?.trim() || existant.texteCps,
+            estimation: existant.estimation ?? f.estimationMad,
+            dateDepot: existant.dateDepot ?? dateOuNull(f.dateLimite),
+            statut: STATUT_PAR_VERDICT[grille.verdict],
+          },
+        })
+      : await tx.dossier.create({
+          data: {
+            tenantId,
+            titre: params.titre?.trim() || f.objet.slice(0, 200),
+            acheteur: f.acheteur,
+            typeMarche: f.typeMarche,
+            texteCps: entree.texte?.trim() || null,
+            estimation: f.estimationMad,
+            dateDepot: dateOuNull(f.dateLimite),
+            statut: STATUT_PAR_VERDICT[grille.verdict],
+            creePar: userId,
+          },
+        });
     const qualification = await tx.qualification.create({
       data: {
         tenantId,
