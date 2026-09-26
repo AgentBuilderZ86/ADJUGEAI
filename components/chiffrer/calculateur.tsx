@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label, Select, Textarea } from "@/components/ui/field";
 import { CourbeGain } from "@/components/chiffrer/courbe-gain";
+import { FormulaireEnregistrement, type OptionsEnregistrement } from "@/components/chiffrer/enregistrement";
+import type { LigneHistorique } from "@/lib/chiffrer/service";
 import { evaluerOffres, evaluerOffresEtudes } from "@/lib/marches/prix-reference";
 import { REFERENCES, SEUILS, TYPES_MARCHE, type TypeMarche } from "@/lib/marches/reglementation";
 import { lireHistorique, lireMontant, lireOffres } from "@/lib/marches/saisie";
@@ -26,7 +28,17 @@ export interface ValeursInitiales {
   estimation?: number;
 }
 
-export function Calculateur({ initial }: { initial?: ValeursInitiales }) {
+export function Calculateur({
+  initial,
+  historiqueCabinet,
+  enregistrement,
+}: {
+  initial?: ValeursInitiales;
+  /** Historique propre au cabinet (espace client) pour calibrer la concurrence. */
+  historiqueCabinet?: LigneHistorique[];
+  /** Présent dans l'espace client : permet d'enregistrer la simulation. */
+  enregistrement?: OptionsEnregistrement;
+}) {
   const [onglet, setOnglet] = useState<Onglet>("simuler");
   return (
     <div>
@@ -51,14 +63,22 @@ export function Calculateur({ initial }: { initial?: ValeursInitiales }) {
           </button>
         ))}
       </div>
-      {onglet === "simuler" ? <Simuler initial={initial} /> : <Analyser />}
+      {onglet === "simuler" ? <Simuler initial={initial} historiqueCabinet={historiqueCabinet} enregistrement={enregistrement} /> : <Analyser />}
     </div>
   );
 }
 
 // ───────────────────────────── Simuler ─────────────────────────────
 
-function Simuler({ initial }: { initial?: ValeursInitiales }) {
+function Simuler({
+  initial,
+  historiqueCabinet = [],
+  enregistrement,
+}: {
+  initial?: ValeursInitiales;
+  historiqueCabinet?: LigneHistorique[];
+  enregistrement?: OptionsEnregistrement;
+}) {
   const [type, setType] = useState<TypeChiffrable>(initial?.type ?? "travaux");
   const [estimation, setEstimation] = useState(initial?.estimation ? mad(initial.estimation).replace(" MAD", "") : "2 500 000");
   const [cout, setCout] = useState("");
@@ -69,11 +89,15 @@ function Simuler({ initial }: { initial?: ValeursInitiales }) {
   const [historique, setHistorique] = useState("");
   const [resultat, setResultat] = useState<ResultatSimulation | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [utiliserCabinet, setUtiliserCabinet] = useState(true);
+  const [parametres, setParametres] = useState<object | null>(null);
 
+  const cabinetDuType = useMemo(() => historiqueCabinet.filter((l) => l.typeMarche === type), [historiqueCabinet, type]);
   const calibration = useMemo(() => {
     const { lignes, erreurs } = lireHistorique(historique);
-    return { c: calibrer(lignes), erreurs };
-  }, [historique]);
+    const toutes = utiliserCabinet ? [...cabinetDuType, ...lignes] : lignes;
+    return { c: calibrer(toutes), erreurs };
+  }, [historique, utiliserCabinet, cabinetDuType]);
 
   function lancer() {
     setErreur(null);
@@ -88,7 +112,8 @@ function Simuler({ initial }: { initial?: ValeursInitiales }) {
           distribution: { type: "normale", moyenne: moyenne / 100, ecartType: ecart / 100 },
         };
     try {
-      setResultat(simulerPrix({ type, estimation: E, modele, cout: C ?? undefined, iterations: 4000 }));
+      setResultat(simulerPrix({ type, estimation: E, modele, cout: C ?? undefined, iterations: 4000, graine: 42 }));
+      setParametres({ type, estimation: E, ...(C ? { cout: C } : {}), modele });
     } catch (e) {
       setErreur((e as Error).message);
     }
@@ -124,7 +149,7 @@ function Simuler({ initial }: { initial?: ValeursInitiales }) {
           <p className="mt-1 text-xs text-slate-500">Renseigné : on maximise la marge espérée. Sinon : la probabilité de gain.</p>
         </div>
 
-        <fieldset className="space-y-3 rounded-md border border-slate-200 p-3" disabled={!!calibration.c}>
+        <fieldset className="space-y-3 rounded-md border border-slate-200 p-3 disabled:opacity-50" disabled={!!calibration.c}>
           <legend className="px-1 text-sm font-medium">Hypothèses sur la concurrence</legend>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -145,10 +170,20 @@ function Simuler({ initial }: { initial?: ValeursInitiales }) {
             <input id="ecart" type="range" min={1} max={20} value={ecart} onChange={(e) => setEcart(+e.target.value)} className="w-full accent-marque-700" />
           </div>
           <p className="text-xs text-slate-500">
-            Valeurs par défaut = hypothèses, pas des données observées. Collez votre historique ci-dessous pour les remplacer.
+            {calibration.c
+              ? "Remplacées par l'historique ci-dessous (données observées)."
+              : "Valeurs par défaut = hypothèses, pas des données observées. Collez votre historique ci-dessous pour les remplacer."}
           </p>
         </fieldset>
 
+        {cabinetDuType.length > 0 && (
+          <label className="flex gap-2 text-sm">
+            <input type="checkbox" checked={utiliserCabinet} onChange={(e) => setUtiliserCabinet(e.target.checked)} className="mt-0.5 accent-marque-700" />
+            <span>
+              Calibrer sur l&apos;historique de mon entreprise ({cabinetDuType.length} AO de ce type)
+            </span>
+          </label>
+        )}
         <div>
           <Label htmlFor="historique">Historique d&apos;AO comparables (facultatif)</Label>
           <Textarea
@@ -217,6 +252,11 @@ function Simuler({ initial }: { initial?: ValeursInitiales }) {
               <p className="mb-2 text-sm font-medium">Probabilité de gain selon le prix déposé</p>
               <CourbeGain points={resultat.points} recommande={reco ?? null} />
             </Card>
+            {enregistrement && parametres && (
+              <Card>
+                <FormulaireEnregistrement key={JSON.stringify(parametres)} parametres={parametres} options={enregistrement} />
+              </Card>
+            )}
             <p className="text-xs text-slate-500">
               {resultat.iterations.toLocaleString("fr-FR")} scénarios simulés. Aide à la décision : le résultat dépend des
               hypothèses de concurrence ; il ne garantit pas l&apos;attribution. Les critères administratifs et techniques

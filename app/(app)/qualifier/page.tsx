@@ -10,8 +10,10 @@ import { mad } from "@/lib/utils";
 
 export const metadata = { title: "Qualifier" };
 
-export default async function Qualifier() {
+export default async function Qualifier({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const sp = await searchParams;
   const { db, tenantId } = await requireTenant();
+  const aQualifier = sp.dossier ? await db.dossier.findUnique({ where: { id: sp.dossier } }) : null;
   const [tenant, quota, dossiers] = await Promise.all([
     db.tenant.findUnique({ where: { id: tenantId } }),
     quotaQualifications(db, tenantId),
@@ -54,8 +56,28 @@ export default async function Qualifier() {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_1fr]">
         <Card>
-          <h2 className="mb-4 font-semibold">Nouvel appel d&apos;offres</h2>
-          <FormulaireQualification desactive={desactive} />
+          {aQualifier ? (
+            <div className="mb-4 space-y-2">
+              <h2 className="font-semibold">Qualifier : {aQualifier.titre}</h2>
+              <p className="text-sm text-slate-600">
+                Joignez le règlement de consultation et le CPS de cet avis
+                {aQualifier.sourceUrl && (
+                  <>
+                    {" "}
+                    (à télécharger sur{" "}
+                    <a href={aQualifier.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-marque-700 underline">
+                      le portail des marchés publics
+                    </a>
+                    )
+                  </>
+                )}
+                .
+              </p>
+            </div>
+          ) : (
+            <h2 className="mb-4 font-semibold">Nouvel appel d&apos;offres</h2>
+          )}
+          <FormulaireQualification desactive={desactive} dossierId={aQualifier?.id} />
         </Card>
 
         <div className="min-w-0">
@@ -93,7 +115,15 @@ export default async function Qualifier() {
                         <td className="px-4 py-2 text-right tabular-nums">{d.estimation ? mad(Number(d.estimation)) : "—"}</td>
                         <td className="px-4 py-2 whitespace-nowrap">{d.dateDepot ? d.dateDepot.toLocaleDateString("fr-FR") : "—"}</td>
                         <td className="px-4 py-2 text-right tabular-nums">{q ? `${q.scoreTotal}/100` : "—"}</td>
-                        <td className="px-4 py-2">{q && <BadgeVerdict verdict={q.verdict} />}</td>
+                        <td className="px-4 py-2">
+                          {q ? (
+                            <BadgeVerdict verdict={q.verdict} />
+                          ) : (
+                            <Link href={`/qualifier?dossier=${d.id}`} className="text-xs font-medium text-marque-700 underline">
+                              À qualifier
+                            </Link>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}

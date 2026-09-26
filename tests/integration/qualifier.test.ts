@@ -117,6 +117,32 @@ describe.skipIf(!process.env.DATABASE_URL)("qualification d'un AO", () => {
     ).rejects.toThrow(/introuvable/);
   });
 
+  it("complète un dossier existant (suivi depuis la veille) au lieu d'en créer un", async () => {
+    const pro = (await base.tenant.create({ data: { nom: "PME Pro", abonnement: { create: { palier: "PRO" } } } })).id;
+    const db = tenantDb(base, pro);
+    const suivi = await db.dossier.create({
+      data: { tenantId: pro, titre: "Avis de la veille", acheteur: "Commune X", estimation: 999_000, statut: "A_QUALIFIER" },
+    });
+    const avant = await db.dossier.count();
+    const { dossier, qualification } = await qualifierAo({
+      db,
+      tenantId: pro,
+      userId: "u1",
+      dossierId: suivi.id,
+      entree: { texte: "RC…" },
+      analyser: async () => analyseFictive(8),
+    });
+    expect(dossier.id).toBe(suivi.id);
+    expect(await db.dossier.count()).toBe(avant);
+    expect(dossier).toMatchObject({ titre: "Avis de la veille", acheteur: "Commune X", statut: "GO", typeMarche: "TRAVAUX" });
+    expect(Number(dossier.estimation)).toBe(999_000);
+    expect(qualification.dossierId).toBe(suivi.id);
+    await expect(
+      qualifierAo({ db: tenantDb(base, autreTenant), tenantId: autreTenant, userId: "x", dossierId: suivi.id, entree: { texte: "x" }, analyser: async () => analyseFictive(5) }),
+    ).rejects.toThrow(/introuvable/);
+    await base.tenant.delete({ where: { id: pro } });
+  });
+
   it("refuse un document qui n'est pas un dossier d'AO, sans rien enregistrer ni décompter", async () => {
     const db = tenantDb(base, tenantId);
     const avant = { dossiers: await db.dossier.count(), audit: await db.auditLog.count() };

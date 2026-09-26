@@ -39,6 +39,7 @@ export async function lancerQualification(_: Etat, form: FormData): Promise<Etat
       tenantId,
       userId: user.id,
       titre: valeurs.titre,
+      dossierId: String(form.get("dossierId") ?? "") || undefined,
       entree: { texte: valeurs.texte, pdfBase64, precisions: valeurs.precisions },
       analyser: (e) => analyserAo(claude(), e),
     });
