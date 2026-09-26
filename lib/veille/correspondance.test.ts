@@ -32,6 +32,18 @@ describe("pertinence", () => {
     expect(pertinence(avis, criteres({ motsCles: ["voirie"] }))).toBeNull();
   });
 
+  it("tolère pluriels, expressions et une faute de frappe", () => {
+    const etude = { ...avis, objet: "Prestations intellectuelles : étude et assistance technique pour les routes rurales" };
+    expect(pertinence(etude, criteres({ motsCles: ["prestations intelectuelles"] }))).toBe(1);
+    expect(pertinence(etude, criteres({ motsCles: ["assistance technique"] }))).toBe(1);
+    expect(pertinence(etude, criteres({ motsCles: ["intelectuel"] }))).toBe(1);
+    expect(pertinence(etude, criteres({ motsCles: ["route"] }))).toBe(1);
+    expect(pertinence(etude, criteres({ motsCles: ["études"] }))).toBe(1);
+    // Pas de tolérance sur les mots courts (trop de faux positifs)
+    expect(pertinence(etude, criteres({ motsCles: ["rote"] }))).toBeNull();
+    expect(pertinence(etude, criteres({ motsCles: ["assistance juridique"] }))).toBeNull();
+  });
+
   it("n'accepte pas un mot-clé au milieu d'un mot", () => {
     expect(pertinence(avis, criteres({ motsCles: ["habilitation"] }))).toBeNull();
   });

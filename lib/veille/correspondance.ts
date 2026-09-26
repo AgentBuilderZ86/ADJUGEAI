@@ -28,9 +28,55 @@ export function normaliser(s: string): string {
     .trim();
 }
 
+/** Racine grossière : retire le pluriel (« routes » → « route », « travaux » → « travau »). */
+function racine(mot: string) {
+  return mot.length > 3 ? mot.replace(/(s|x)$/, "") : mot;
+}
+
+/** Distance d'édition bornée : vrai si a et b diffèrent d'au plus une opération. */
+function unEcartAuPlus(a: string, b: string) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  let j = 0;
+  let ecarts = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    if (++ecarts > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else {
+      i++;
+      j++;
+    }
+  }
+  return ecarts + (a.length - i) + (b.length - j) <= 1;
+}
+
+/**
+ * Un mot du profil correspond à un mot du texte : même racine, début de mot (« rehabilit » ⊂ « rehabilitation »),
+ * ou une faute de frappe tolérée pour les mots de 6 lettres et plus (« intelectuelles » ≈ « intellectuelles »).
+ */
+function motCorrespond(motProfil: string, motTexte: string) {
+  const p = racine(motProfil);
+  const t = racine(motTexte);
+  if (t.startsWith(p)) return true;
+  if (p.length < 6) return false;
+  // Mot entier ou début de mot, à une faute près
+  return unEcartAuPlus(p, t) || unEcartAuPlus(p, t.slice(0, p.length)) || unEcartAuPlus(p, t.slice(0, p.length + 1));
+}
+
 function contient(texteNormalise: string, terme: string) {
-  const t = normaliser(terme);
-  return t.length > 0 && ` ${texteNormalise} `.includes(` ${t}`);
+  const mots = normaliser(terme).split(" ").filter(Boolean);
+  if (!mots.length) return false;
+  const texte = texteNormalise.split(" ");
+  for (let i = 0; i + mots.length <= texte.length; i++) {
+    if (mots.every((m, k) => motCorrespond(m, texte[i + k]))) return true;
+  }
+  return false;
 }
 
 /**

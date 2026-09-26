@@ -46,6 +46,13 @@ describe("formats", () => {
 });
 
 describe("session", () => {
+  it("transforme une panne réseau en interruption propre", async () => {
+    const enPanne = (async () => {
+      throw new TypeError("fetch failed");
+    }) as unknown as typeof fetch;
+    await expect(new SessionPmmp(enPanne, 0).get("page=a")).rejects.toThrow(/injoignable/);
+  });
+
   it("s'identifie honnêtement, espace les requêtes et s'arrête sur 403", async () => {
     const appels: { ua: string | null; t: number }[] = [];
     const faux = (async (_url: string, init?: RequestInit) => {

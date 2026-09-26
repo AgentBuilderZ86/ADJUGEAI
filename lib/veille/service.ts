@@ -4,6 +4,7 @@ import { normaliser, pertinence, typeDepuisCategorie, type CriteresVeille } from
 import { collecterDetail, collecterRecents, CollecteInterrompue, SessionPmmp, type AvisBrut } from "./pmmp";
 
 export const SOURCE_PMMP = "pmmp";
+export const SOURCE_RATTRAPAGE = "pmmp-rattrapage";
 
 /** Écart minimal entre deux collectes (respect du portail). */
 export const INTERVALLE_MIN_MINUTES = 60;
@@ -88,7 +89,7 @@ export async function collecter(
       `Dernière collecte il y a moins de ${INTERVALLE_MIN_MINUTES} minutes (${derniere.debut.toLocaleString("fr-FR")}).`,
     );
   }
-  const journal = await prisma.collecteVeille.create({ data: { source: SOURCE_PMMP, declenchePar: options.declenchePar } });
+  const journal = await prisma.collecteVeille.create({ data: { source: SOURCE_PMMP, declenchePar: options.declenchePar, debut: maintenant } });
   const session = options.session ?? new SessionPmmp();
   let bilan = { lus: 0, nouveaux: 0, details: 0 };
   try {
@@ -229,5 +230,65 @@ export async function suivreAvis(params: { prisma: PrismaClient; db: TenantDb; t
     });
     await tx.auditLog.create({ data: { tenantId, userId, action: "veille.suivi", cible: `Dossier:${dossier.id}`, apres: { avisId } } });
     return dossier;
+  });
+}
+
+// ───────────────────────────── Rattrapage des pages anciennes ─────────────────────────────
+
+/** Nombre maximal de pages parcourues par exécution (100 avis chacune). */
+export const PAGES_PAR_RATTRAPAGE = 10;
+
+/**
+ * Ouvre une session de rattrapage : reprend après la dernière page parcourue.
+ * Une fois toutes les consultations ouvertes couvertes (statut « complet »), un nouveau cycle
+ * ne recommence qu'après 24 h. Refuse si un rattrapage a démarré il y a moins de 60 minutes.
+ */
+export async function ouvrirRattrapage(prisma: PrismaClient, maintenant = new Date()) {
+  const dernier = await prisma.collecteVeille.findFirst({ where: { source: SOURCE_RATTRAPAGE }, orderBy: { debut: "desc" } });
+  if (dernier && maintenant.getTime() - dernier.debut.getTime() < INTERVALLE_MIN_MINUTES * 60_000) {
+    return { actif: false as const, raison: "rattrapage récent" };
+  }
+  if (dernier?.statut === "complet" && dernier.fin && maintenant.getTime() - dernier.fin.getTime() < 24 * 3_600_000) {
+    return { actif: false as const, raison: "cycle complet depuis moins de 24 h" };
+  }
+  const pageDepart = dernier && dernier.statut !== "complet" && dernier.page ? dernier.page + 1 : 2;
+  const journal = await prisma.collecteVeille.create({
+    data: { source: SOURCE_RATTRAPAGE, declenchePar: "planification", page: pageDepart - 1, debut: maintenant },
+  });
+  return { actif: true as const, journalId: journal.id, pageDepart, pagesMax: PAGES_PAR_RATTRAPAGE };
+}
+
+/**
+ * Enregistre une page lue par la fonction d'arrière-plan. Le cycle est « complet » quand une page
+ * ne contient plus aucune consultation ouverte (ou est vide) : inutile de remonter plus loin.
+ */
+export async function enregistrerPageRattrapage(
+  prisma: PrismaClient,
+  params: { journalId: string; page: number; avis: AvisBrut[]; derniere: boolean; maintenant?: Date },
+) {
+  const maintenant = params.maintenant ?? new Date();
+  const journal = await prisma.collecteVeille.findUnique({ where: { id: params.journalId } });
+  if (!journal || journal.source !== SOURCE_RATTRAPAGE || journal.statut !== "en_cours") throw new Error("Rattrapage introuvable ou clos.");
+  const { lus, nouveaux } = await enregistrerAvis(prisma, params.avis);
+  const ouverts = params.avis.filter((a) => a.dateLimite && a.dateLimite > maintenant).length;
+  const complet = params.avis.length === 0 || ouverts === 0;
+  const statut = complet ? "complet" : params.derniere ? "ok" : "en_cours";
+  await prisma.collecteVeille.update({
+    where: { id: journal.id },
+    data: {
+      page: params.page,
+      lus: journal.lus + lus,
+      nouveaux: journal.nouveaux + nouveaux,
+      statut,
+      ...(statut !== "en_cours" ? { fin: maintenant } : {}),
+    },
+  });
+  return { continuer: statut === "en_cours" };
+}
+
+export async function interrompreRattrapage(prisma: PrismaClient, journalId: string, message: string) {
+  await prisma.collecteVeille.updateMany({
+    where: { id: journalId, source: SOURCE_RATTRAPAGE, statut: "en_cours" },
+    data: { statut: "interrompue", fin: new Date(), message: message.slice(0, 500) },
   });
 }

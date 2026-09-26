@@ -26,9 +26,16 @@ accès officiel (export, liste blanche) — décision et envoi par le fondateur.
 1. `netlify/functions/veille-planifiee.mts` (toutes les 2 h, production uniquement) déclenche
    `veille-collecte-background.mts` (15 min max).
 2. Celle-ci appelle `POST /api/veille/collecte` (50 avis les plus récents : 3 à 4 requêtes) puis
-   `POST /api/veille/details` par lots de 8 fiches (estimation, caution). Les deux routes exigent `Authorization: Bearer $CRON_SECRET`.
-3. Les avis sont partagés entre cabinets (données publiques) ; les profils de veille et les dossiers suivis sont cloisonnés.
-4. Un administrateur peut lancer une collecte depuis `/veille` (même garde des 60 minutes), utile sur les deploy previews où les
+   `POST /api/veille/details` par lots de 8 fiches (estimation, caution), 4 lots au plus.
+3. **Rattrapage** : elle lit elle-même jusqu'à 10 pages plus anciennes de 100 avis (le portail met ~15 s par page)
+   et envoie chaque page analysée à `POST /api/veille/rattrapage`, qui l'enregistre. Un curseur reprend là où le
+   passage précédent s'est arrêté ; le cycle est « complet » à la première page sans consultation ouverte, et ne
+   recommence qu'après 24 h. Toutes les routes exigent `Authorization: Bearer $CRON_SECRET`.
+4. Volume mesuré (26/09/2026) : un passage complet ≈ 50 requêtes en ~4 min 30 ; 50 avis récents, 32 fiches, 1 000 avis
+   rattrapés. L'ensemble des consultations ouvertes (~40 à 50 jours de publications) est couvert en une journée environ.
+5. Délai de 45 s par requête ; une panne ou un refus interrompt proprement le passage, repris au suivant.
+6. Les avis sont partagés entre cabinets (données publiques) ; les profils de veille et les dossiers suivis sont cloisonnés.
+7. Un administrateur peut lancer une collecte depuis `/veille` (même garde des 60 minutes), utile sur les deploy previews où les
    fonctions planifiées ne tournent pas.
 
 ## Hors périmètre (à venir)

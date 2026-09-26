@@ -263,6 +263,8 @@ model CollecteVeille {
   details   Int       @default(0)
   message   String?
   declenchePar String? // "planification" ou identifiant utilisateur
+  /// Rattrapage : dernière page de la liste parcourue (curseur d'une collecte à l'autre)
+  page      Int?
 
   @@index([source, debut])
 }

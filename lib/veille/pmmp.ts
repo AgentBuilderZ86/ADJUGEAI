@@ -11,6 +11,8 @@
 export const BASE_PMMP = "https://www.marchespublics.gov.ma/index.php";
 export const AGENT = "AdjugeBot/1.0 (+https://adjugeai.netlify.app/robot)";
 const PAUSE_MS = 2500;
+/** Délai maximal d'une requête : au-delà, la collecte s'interrompt proprement (reprise au passage suivant). */
+const DELAI_REQUETE_MS = 45_000;
 
 export interface AvisBrut {
   refConsultation: string;
@@ -150,16 +152,27 @@ export class SessionPmmp {
     const attente = this.derniere + this.pauseMs - Date.now();
     if (attente > 0) await new Promise((r) => setTimeout(r, attente));
     this.derniere = Date.now();
-    const res = await this.fetchImpl(url, {
-      ...init,
-      redirect: "follow",
-      headers: {
-        "user-agent": AGENT,
-        "accept-language": "fr",
-        ...(this.cookies.size ? { cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ") } : {}),
-        ...(init.headers ?? {}),
-      },
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, {
+        ...init,
+        signal: AbortSignal.timeout(DELAI_REQUETE_MS),
+        redirect: "follow",
+        headers: {
+          "user-agent": AGENT,
+          "accept-language": "fr",
+          ...(this.cookies.size ? { cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ") } : {}),
+          ...(init.headers ?? {}),
+        },
+      });
+    } catch (e) {
+      const nom = (e as Error).name;
+      throw new CollecteInterrompue(
+        nom === "TimeoutError" || nom === "AbortError"
+          ? `Le portail n'a pas répondu en ${DELAI_REQUETE_MS / 1000} s : collecte interrompue.`
+          : `Portail injoignable (${(e as Error).message}).`,
+      );
+    }
     for (const c of res.headers.getSetCookie?.() ?? []) {
       const [paire] = c.split(";");
       const i = paire.indexOf("=");
@@ -196,10 +209,10 @@ function plusRecentePublication(avis: AvisBrut[]) {
 }
 
 /**
- * Les consultations les plus récemment publiées : liste triée par date de publication décroissante,
- * `taille` résultats (10, 20, 50 ou 100). Trois à quatre requêtes au plus.
+ * Liste triée par date de publication décroissante, `taille` résultats par page (10, 20, 50 ou 100).
+ * Trois à quatre requêtes au plus. Renvoie aussi le HTML, dont l'état PRADO sert à naviguer ensuite.
  */
-export async function collecterRecents(session: SessionPmmp, taille: 10 | 20 | 50 | 100 = 100): Promise<AvisBrut[]> {
+export async function listeTriee(session: SessionPmmp, taille: 10 | 20 | 50 | 100 = 100): Promise<{ html: string; avis: AvisBrut[] }> {
   let html = await session.get(PAGE_CONSULTATIONS);
   if (taille !== 10) html = await session.postback(PAGE_CONSULTATIONS, html, TAILLE_PAGE, { [TAILLE_PAGE]: String(taille) });
 
@@ -212,7 +225,26 @@ export async function collecterRecents(session: SessionPmmp, taille: 10 | 20 | 5
     html = await session.postback(PAGE_CONSULTATIONS, html, TRI_PUBLICATION, { [`${TRI_PUBLICATION}.x`]: "5", [`${TRI_PUBLICATION}.y`]: "5" });
     liste = lireListe(html);
   }
-  return plusRecentePublication(liste) >= plusRecentePublication(avant) ? liste : avant;
+  return plusRecentePublication(liste) >= plusRecentePublication(avant) ? { html, avis: liste } : { html: html, avis: avant };
+}
+
+/** Les consultations les plus récemment publiées. */
+export async function collecterRecents(session: SessionPmmp, taille: 10 | 20 | 50 | 100 = 100): Promise<AvisBrut[]> {
+  return (await listeTriee(session, taille)).avis;
+}
+
+const NUMERO_PAGE = "ctl0$CONTENU_PAGE$resultSearch$numPageTop";
+const ALLER_A_LA_PAGE = "ctl0$CONTENU_PAGE$resultSearch$DefaultButtonTop";
+
+/** Page `n` de la liste courante (tri et taille conservés dans l'état PRADO de `html`). */
+export async function allerALaPage(session: SessionPmmp, html: string, n: number): Promise<{ html: string; avis: AvisBrut[] }> {
+  const suivante = await session.postback(PAGE_CONSULTATIONS, html, ALLER_A_LA_PAGE, { [NUMERO_PAGE]: String(n), [ALLER_A_LA_PAGE]: "" });
+  return { html: suivante, avis: lireListe(suivante) };
+}
+
+export function pageCourante(html: string): number | null {
+  const m = html.match(/name="ctl0\$CONTENU_PAGE\$resultSearch\$numPageTop" type="text" value="(\d+)"/);
+  return m ? Number(m[1]) : null;
 }
 
 export async function collecterDetail(session: SessionPmmp, avis: Pick<AvisBrut, "refConsultation" | "orgAcronyme">) {
