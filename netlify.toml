@@ -4,3 +4,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
+
+# Adaptateur Next.js de Netlify (fonctions serveur, rendu dynamique, actions serveur).
+# Déclaré explicitement : sans lui, .next est publié comme un site statique (404 partout).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
