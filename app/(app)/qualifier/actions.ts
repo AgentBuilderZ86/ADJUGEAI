@@ -7,7 +7,7 @@ import type { Verdict } from "@prisma/client";
 import { claude, messageErreurClaude } from "@/lib/claude";
 import { analyserAo, AnalyseImpossible } from "@/lib/qualifier/analyse";
 import { CHAMPS_PROFIL, schemaProfil } from "@/lib/qualifier/profil";
-import { corrigerVerdict, enregistrerProfil, qualifierAo, QuotaAtteint } from "@/lib/qualifier/service";
+import { corrigerVerdict, DocumentNonPertinent, enregistrerProfil, qualifierAo, QuotaAtteint, supprimerDossier } from "@/lib/qualifier/service";
 import { requireTenant } from "@/lib/session";
 
 export type Etat = { erreur?: string; ok?: string; valeurs?: Record<string, string> } | undefined;
@@ -44,7 +44,7 @@ export async function lancerQualification(_: Etat, form: FormData): Promise<Etat
     });
     dossierId = dossier.id;
   } catch (e) {
-    if (e instanceof QuotaAtteint || e instanceof AnalyseImpossible) return { erreur: e.message, valeurs };
+    if (e instanceof QuotaAtteint || e instanceof AnalyseImpossible || e instanceof DocumentNonPertinent) return { erreur: e.message, valeurs };
     console.error("[qualifier]", e);
     return { erreur: messageErreurClaude(e), valeurs };
   }
@@ -80,4 +80,16 @@ export async function sauverProfil(_: Etat, form: FormData): Promise<Etat> {
   await enregistrerProfil({ db, tenantId, userId: user.id, profil });
   revalidatePath("/qualifier");
   return { ok: "Profil enregistré.", valeurs: brut };
+}
+
+export async function supprimer(_: Etat, form: FormData): Promise<Etat> {
+  const { db, tenantId, user } = await requireTenant();
+  const dossierId = String(form.get("dossierId") ?? "");
+  try {
+    await supprimerDossier({ db, tenantId, userId: user.id, dossierId });
+  } catch (e) {
+    return { erreur: (e as Error).message };
+  }
+  revalidatePath("/qualifier");
+  redirect("/qualifier");
 }

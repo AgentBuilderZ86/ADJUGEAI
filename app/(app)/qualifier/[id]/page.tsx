@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { BoutonImprimer } from "@/components/bouton-imprimer";
 import { FormulaireCorrection } from "@/components/qualifier/formulaire-correction";
 import { BadgeVerdict } from "@/components/qualifier/verdict";
+import { BoutonSupprimer } from "@/components/qualifier/bouton-supprimer";
 import type { AnalyseAo } from "@/lib/qualifier/analyse";
 import { BLOCS, KILL_SWITCHES, SEUILS_VERDICT, type CleBloc, type CleKillSwitch } from "@/lib/qualifier/grille";
 import { requireTenant } from "@/lib/session";
@@ -152,9 +153,14 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
         <FormulaireCorrection qualificationId={q.id} dossierId={dossier.id} verdict={q.verdict} />
       </Card>
 
-      <p className="text-xs text-slate-500">
-        Qualifié le {q.createdAt.toLocaleString("fr-FR")}. Analyse assistée par IA : à vérifier sur le dossier original avant toute décision engageante.
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-500">
+          Qualifié le {q.createdAt.toLocaleString("fr-FR")}. Analyse assistée par IA : à vérifier sur le dossier original avant toute décision engageante.
+        </p>
+        <div className="print:hidden">
+          <BoutonSupprimer dossierId={dossier.id} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { appliquerGrille, BLOCS, type CleBloc, type CleKillSwitch } from "./gril
 import { profilDepuis, type ProfilEntreprise } from "./profil";
 
 export class QuotaAtteint extends Error {}
+export class DocumentNonPertinent extends Error {}
 
 const STATUT_PAR_VERDICT: Record<Verdict, StatutDossier> = {
   GO: "GO",
@@ -22,7 +23,8 @@ export async function quotaQualifications(db: TenantDb, tenantId: string) {
   const abonnement = await db.abonnement.findUnique({ where: { tenantId } });
   const palier: Palier = abonnement?.palier ?? "GRATUIT";
   const limite = PALIERS.find((p) => p.cle === palier)?.limites.qualificationsParMois ?? null;
-  const utilisees = await db.qualification.count({ where: { createdAt: { gte: debutDuMois() } } });
+  // Compté sur le journal d'audit : supprimer un dossier ne rend pas de qualification.
+  const utilisees = await db.auditLog.count({ where: { action: "qualification.creation", date: { gte: debutDuMois() } } });
   return { palier, limite, utilisees, restantes: limite === null ? null : Math.max(0, limite - utilisees) };
 }
 
@@ -49,6 +51,12 @@ export async function qualifierAo(params: {
   const tenant = await db.tenant.findUnique({ where: { id: tenantId } });
   const profil = profilDepuis(tenant?.profil);
   const analyse = await analyser({ ...entree, profil });
+  if (analyse.nature === "AUTRE") {
+    // Rien n'est enregistré ni décompté : le document n'est pas un dossier d'AO.
+    throw new DocumentNonPertinent(
+      `Ce document ne semble pas être un dossier d'appel d'offres (${analyse.natureExplication.trim() || "nature non reconnue"}). Joignez l'avis, le règlement de consultation ou le CPS.`,
+    );
+  }
 
   const grille = appliquerGrille({
     notes: Object.fromEntries(BLOCS.map((b) => [b.cle, analyse.blocs[b.cle].note])) as Record<CleBloc, number>,
@@ -112,6 +120,24 @@ export async function qualifierAo(params: {
       },
     });
     return { dossier, qualification };
+  });
+}
+
+/**
+ * Suppression définitive d'un dossier et de tout ce qui s'y rattache (qualifications, simulations,
+ * pièces, post-mortem) — droit à l'effacement (loi 09-08). La trace d'audit ne conserve que l'intitulé.
+ */
+export async function supprimerDossier(params: { db: TenantDb; tenantId: string; userId: string; dossierId: string }) {
+  const { db, tenantId, userId, dossierId } = params;
+  const dossier = await db.dossier.findUnique({ where: { id: dossierId } });
+  if (!dossier) throw new Error("Dossier introuvable.");
+  await db.$transaction(async (tx) => {
+    const qualifications = await tx.qualification.findMany({ where: { dossierId }, select: { id: true } });
+    await tx.feedbackRegle.deleteMany({ where: { qualificationId: { in: qualifications.map((q) => q.id) } } });
+    await tx.dossier.delete({ where: { id: dossierId } });
+    await tx.auditLog.create({
+      data: { tenantId, userId, action: "dossier.suppression", cible: `Dossier:${dossierId}`, avant: { titre: dossier.titre } },
+    });
   });
 }
 

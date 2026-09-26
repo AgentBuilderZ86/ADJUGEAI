@@ -16,6 +16,10 @@ const killSwitch = z.object({
 });
 
 export const schemaAnalyse = z.object({
+  nature: z
+    .enum(["DOSSIER_AO", "AUTRE"])
+    .describe("DOSSIER_AO si le document est un avis, un RC, un CPS ou un dossier de consultation ; AUTRE sinon (CV, offre, courrier…)"),
+  natureExplication: z.string().describe("Si AUTRE : ce qu'est le document, en une phrase"),
   fiche: z.object({
     objet: z.string(),
     acheteur: z.string().nullable(),
@@ -57,6 +61,7 @@ export type AnalyseAo = z.infer<typeof schemaAnalyse>;
 export const CONSIGNE = `Tu es un expert des marchés publics marocains (décret n° 2-22-431) qui aide une entreprise à décider si elle répond à un appel d'offres.
 
 Tu reçois le dossier de l'AO (avis, règlement de consultation, CPS…) et le profil de l'entreprise. Tu :
+0. vérifies que le document est bien un dossier d'appel d'offres ; sinon (CV, offre d'un candidat, courrier…), indique nature = AUTRE, explique ce qu'il est, et remplis le reste au minimum sans rien évaluer ;
 1. extrais les informations clés de l'AO, sans rien inventer (null si absent) ;
 2. évalues chacun des 6 blocs de la grille par une note de 0 à 10, justifiée par des éléments précis de l'AO et du profil ;
 3. signales les kill switches strictement selon leur définition ;

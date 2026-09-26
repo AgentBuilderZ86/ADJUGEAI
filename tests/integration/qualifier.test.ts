@@ -4,7 +4,7 @@
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { AnalyseAo } from "@/lib/qualifier/analyse";
-import { corrigerVerdict, qualifierAo, QuotaAtteint } from "@/lib/qualifier/service";
+import { corrigerVerdict, DocumentNonPertinent, qualifierAo, QuotaAtteint, supprimerDossier } from "@/lib/qualifier/service";
 import { tenantDb } from "@/lib/tenant";
 
 const base = new PrismaClient();
@@ -16,6 +16,8 @@ const ks = (actif: boolean) => ({ actif, justification: "test" });
 
 function analyseFictive(notes: number, killRefs = false): AnalyseAo {
   return {
+    nature: "DOSSIER_AO",
+    natureExplication: "",
     fiche: {
       objet: "Réhabilitation du siège provincial",
       acheteur: "Province de Test",
@@ -113,6 +115,35 @@ describe.skipIf(!process.env.DATABASE_URL)("qualification d'un AO", () => {
     await expect(
       corrigerVerdict({ db: tenantDb(base, autreTenant), tenantId: autreTenant, userId: "x", qualificationId: q!.id, verdict: "GO", commentaire: "" }),
     ).rejects.toThrow(/introuvable/);
+  });
+
+  it("refuse un document qui n'est pas un dossier d'AO, sans rien enregistrer ni décompter", async () => {
+    const db = tenantDb(base, tenantId);
+    const avant = { dossiers: await db.dossier.count(), audit: await db.auditLog.count() };
+    await expect(
+      qualifierAo({
+        db,
+        tenantId,
+        userId: "u1",
+        entree: { texte: "CV" },
+        analyser: async () => ({ ...analyseFictive(5), nature: "AUTRE", natureExplication: "CV d'un consultant" }),
+      }),
+    ).rejects.toThrow(DocumentNonPertinent);
+    expect(await db.dossier.count()).toBe(avant.dossiers);
+    expect(await db.auditLog.count()).toBe(avant.audit);
+  });
+
+  it("supprime un dossier et ses données, sans rendre de quota", async () => {
+    const db = tenantDb(base, tenantId);
+    const q = await db.qualification.findFirst({ where: { corrige: true } });
+    await supprimerDossier({ db, tenantId, userId: "u1", dossierId: q!.dossierId });
+    expect(await db.dossier.findUnique({ where: { id: q!.dossierId } })).toBeNull();
+    expect(await db.qualification.findUnique({ where: { id: q!.id } })).toBeNull();
+    expect(await db.feedbackRegle.count({ where: { qualificationId: q!.id } })).toBe(0);
+    expect(await db.auditLog.count({ where: { action: "dossier.suppression" } })).toBe(1);
+    // Impossible de supprimer depuis un autre cabinet
+    const reste = await db.dossier.findFirst();
+    await expect(supprimerDossier({ db: tenantDb(base, autreTenant), tenantId: autreTenant, userId: "x", dossierId: reste!.id })).rejects.toThrow(/introuvable/);
   });
 
   it("bloque au-delà du quota mensuel de l'offre gratuite (3)", async () => {
