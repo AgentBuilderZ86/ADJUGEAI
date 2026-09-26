@@ -37,9 +37,13 @@ accès officiel (export, liste blanche) — décision et envoi par le fondateur.
 6. Les avis sont partagés entre cabinets (données publiques) ; les profils de veille et les dossiers suivis sont cloisonnés.
 7. Un administrateur peut lancer une collecte depuis `/veille` (même garde des 60 minutes), utile sur les deploy previews où les
    fonctions planifiées ne tournent pas.
+8. **Alertes e-mail** : `netlify/functions/veille-alertes.mts` (chaque jour à 6 h 47 UTC, ≈ 7 h 47 au Maroc) appelle
+   `POST /api/veille/alertes`. Pour chaque cabinet dont l'alerte est cochée : avis ouverts collectés depuis le dernier
+   récapitulatif (36 h au plus), correspondant au profil et non suivis, envoyés à tous les utilisateurs du cabinet
+   (15 détaillés, le reste renvoyé vers `/veille`). Sans `RESEND_API_KEY` et `ADJUGE_EMAIL_EXPEDITEUR`, rien n'est envoyé
+   ni marqué comme signalé. Chaque envoi est journalisé (`veille.alerte`).
 
 ## Hors périmètre (à venir)
 
 - Extraits de PV et résultats : pièces jointes PDF souvent scannées → OCR ; import assisté d'abord, automatisation après accord de la TGR.
-- Alertes e-mail (fournisseur d'envoi à configurer).
 - Autres plateformes d'acheteurs (OCP, ONEE, ANP…).

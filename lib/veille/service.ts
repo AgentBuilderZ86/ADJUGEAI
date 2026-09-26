@@ -1,4 +1,4 @@
-import type { PrismaClient, TypeMarche } from "@prisma/client";
+import type { Prisma, PrismaClient, TypeMarche } from "@prisma/client";
 import type { TenantDb } from "@/lib/tenant";
 import { normaliser, pertinence, typeDepuisCategorie, type CriteresVeille } from "./correspondance";
 import { collecterDetail, collecterRecents, CollecteInterrompue, SessionPmmp, type AvisBrut } from "./pmmp";
@@ -166,6 +166,34 @@ export interface AvisPertinent {
   dossierId: string | null;
 }
 
+type AvisCandidat = Prisma.AvisAppelOffresGetPayload<{ include: { acheteur: { select: { nom: true } } } }>;
+
+/** Garde les avis qui correspondent aux critères, du plus pertinent au plus récent. */
+export function filtrerPertinents(candidats: AvisCandidat[], criteres: CriteresVeille): AvisPertinent[] {
+  const avis: AvisPertinent[] = [];
+  for (const c of candidats) {
+    const estimation = c.estimation === null ? null : Number(c.estimation);
+    const score = pertinence({ objet: c.objet, acheteur: c.acheteur?.nom ?? null, lieu: c.lieu, typeMarche: c.typeMarche, estimation }, criteres);
+    if (score === null) continue;
+    avis.push({
+      id: c.id,
+      objet: c.objet,
+      acheteur: c.acheteur?.nom ?? null,
+      lieu: c.lieu,
+      typeMarche: c.typeMarche,
+      procedure: c.procedure,
+      estimation,
+      cautionProvisoire: c.cautionProvisoire === null ? null : Number(c.cautionProvisoire),
+      datePublication: c.datePublication,
+      dateLimite: c.dateLimite,
+      url: c.url,
+      score,
+      dossierId: null,
+    });
+  }
+  return avis.sort((a, b) => b.score - a.score || (b.datePublication?.getTime() ?? 0) - (a.datePublication?.getTime() ?? 0));
+}
+
 /** Avis ouverts correspondant au profil du cabinet, du plus pertinent au plus récent. */
 export async function avisPertinents(prisma: PrismaClient, db: TenantDb, limite = 100): Promise<{ profil: boolean; avis: AvisPertinent[] }> {
   const profil = await db.profilVeille.findFirst({ orderBy: { createdAt: "asc" } });
@@ -185,28 +213,7 @@ export async function avisPertinents(prisma: PrismaClient, db: TenantDb, limite 
     ]),
   );
 
-  const avis: AvisPertinent[] = [];
-  for (const c of candidats) {
-    const estimation = c.estimation === null ? null : Number(c.estimation);
-    const score = pertinence({ objet: c.objet, acheteur: c.acheteur?.nom ?? null, lieu: c.lieu, typeMarche: c.typeMarche, estimation }, criteres);
-    if (score === null) continue;
-    avis.push({
-      id: c.id,
-      objet: c.objet,
-      acheteur: c.acheteur?.nom ?? null,
-      lieu: c.lieu,
-      typeMarche: c.typeMarche,
-      procedure: c.procedure,
-      estimation,
-      cautionProvisoire: c.cautionProvisoire === null ? null : Number(c.cautionProvisoire),
-      datePublication: c.datePublication,
-      dateLimite: c.dateLimite,
-      url: c.url,
-      score,
-      dossierId: suivis.get(c.id) ?? null,
-    });
-  }
-  avis.sort((a, b) => b.score - a.score || (b.datePublication?.getTime() ?? 0) - (a.datePublication?.getTime() ?? 0));
+  const avis = filtrerPertinents(candidats, criteres).map((a) => ({ ...a, dossierId: suivis.get(a.id) ?? null }));
   return { profil: true, avis: avis.slice(0, limite) };
 }
 

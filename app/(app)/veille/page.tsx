@@ -6,6 +6,7 @@ import { requireTenant } from "@/lib/session";
 import { mad } from "@/lib/utils";
 import { avisPertinents, criteresDuProfil, derniereCollecte } from "@/lib/veille/service";
 import { dateFr, dateHeureFr } from "@/lib/dates";
+import { emailConfigure } from "@/lib/email";
 
 export const metadata = { title: "Veille" };
 
@@ -49,6 +50,7 @@ export default async function Veille() {
           <h2 className="mb-4 font-semibold">Profil de veille</h2>
           <FormulaireProfilVeille
             modifiable={administrateur}
+            emailActif={emailConfigure()}
             profil={profil ? { ...criteresDuProfil(profil), alerteEmail: profil.alerteEmail } : null}
           />
         </Card>

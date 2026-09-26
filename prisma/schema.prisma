@@ -314,6 +314,8 @@ model ProfilVeille {
   estimationMin Decimal? @db.Decimal(16, 2)
   estimationMax Decimal? @db.Decimal(16, 2)
   alerteEmail Boolean @default(true)
+  /// Dernier récapitulatif e-mail envoyé : les avis collectés après cette date restent à signaler
+  derniereAlerte DateTime?
   createdAt  DateTime @default(now())
 
   @@index([tenantId])
