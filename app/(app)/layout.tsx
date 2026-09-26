@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { MODULES } from "@/lib/modules";
 import { requireTenant } from "@/lib/session";
 import { deconnecter } from "../(auth)/actions";
+import { ReinitialiserRechargement } from "@/components/reinitialiser-rechargement";
 
 const ACTIFS = new Set(["qualifier", "chiffrer"]);
 
@@ -46,7 +47,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Button>
           </form>
         </header>
-        <main className="flex-1 p-4 sm:p-8 print:p-0">{children}</main>
+        <main className="flex-1 p-4 sm:p-8 print:p-0">
+          <ReinitialiserRechargement />
+          {children}
+        </main>
       </div>
     </div>
   );

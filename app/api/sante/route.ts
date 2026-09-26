@@ -21,7 +21,7 @@ export async function GET() {
     authentification: process.env.AUTH_SECRET ? "configurée" : "absente",
     qualification: claudeDisponible() ? "configurée" : "absente",
     modele: MODELE_CLAUDE,
-    version: process.env.COMMIT_REF?.slice(0, 7) ?? "local",
+    version: process.env.ADJUGE_VERSION ?? "local",
   };
   const ok = base === "ok" && corps.authentification === "configurée";
   return NextResponse.json(corps, { status: ok ? 200 : 503, headers: { "cache-control": "no-store" } });
