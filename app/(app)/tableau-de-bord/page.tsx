@@ -17,7 +17,7 @@ export default async function TableauDeBord() {
     <div className="max-w-5xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold">Bienvenue, {tenant?.nom}</h1>
-        <p className="mt-1 text-slate-600">Votre espace est prêt. Commencez par chiffrer votre prochain appel d&apos;offres.</p>
+        <p className="mt-1 text-slate-600">Votre espace est prêt. Qualifiez votre prochain appel d&apos;offres, puis chiffrez-le.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -29,10 +29,13 @@ export default async function TableauDeBord() {
           <p className="mt-1 text-3xl font-bold">{simulations}</p>
         </Card>
         <Card className="flex flex-col justify-between">
-          <p className="text-sm text-slate-600">Prochain AO à chiffrer ?</p>
-          <LienBouton href="/chiffrer" className="mt-3">
-            Lancer une simulation
-          </LienBouton>
+          <p className="text-sm text-slate-600">Un nouvel AO ?</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <LienBouton href="/qualifier">Qualifier</LienBouton>
+            <LienBouton href="/chiffrer" variante="secondaire">
+              Chiffrer
+            </LienBouton>
+          </div>
         </Card>
       </div>
       <div>

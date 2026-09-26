@@ -6,7 +6,7 @@ réglementaire (décret 2-22-431)**, constitution du dossier, résultats, exécu
 - Vision, cibles, modèle économique et feuille de route : [`docs/VISION.md`](docs/VISION.md)
 - Règles du décret implémentées, avec articles et points d'interprétation : [`docs/REGLEMENTATION.md`](docs/REGLEMENTATION.md)
 
-## État — vague 0
+## État — vague 0 et début de vague 1
 
 | Livré | Détail |
 |---|---|
@@ -16,14 +16,26 @@ réglementaire (décret 2-22-431)**, constitution du dossier, résultats, exécu
 | Moteur de chiffrage | Évaluation des offres (art. 43, 44, 144), simulation Monte Carlo, calibration sur historique |
 | Calculateur public | `/calculateur` — gratuit, sans inscription, calcul dans le navigateur |
 | Espace client | Inscription du cabinet (consentement loi 09-08, journal d'audit), connexion, tableau de bord, `/chiffrer` |
+| **Qualifier** (vague 1) | `/qualifier` : PDF ou texte du RC/CPS → analyse par Claude (sortie structurée validée) → grille 6 blocs, kill switches et verdict calculés par le code (`lib/qualifier/grille.ts`) ; profil entreprise, correction tracée (`FeedbackRegle`), quota par offre, passage direct au chiffrage |
+| Hébergement | Netlify + **Netlify Database** (PostgreSQL provisionné automatiquement, base isolée par deploy preview) |
 
 ## Démarrer
 
 ```bash
 npm install
-cp .env.example .env          # renseigner DATABASE_URL et AUTH_SECRET
-npm run db:push               # crée le schéma
+cp .env.example .env          # renseigner DATABASE_URL et AUTH_SECRET (+ ANTHROPIC_API_KEY pour Qualifier)
+npm run db:apply              # applique netlify/database/migrations sur la base locale
 npm run dev                   # http://localhost:3000
+```
+
+## Faire évoluer le schéma
+
+`netlify/database/migrations/` est la source de vérité : Netlify applique ces fichiers SQL à chaque déploiement.
+
+```bash
+# 1. modifier prisma/schema.prisma
+npm run db:migration -- nom-en-minuscules   # génère et applique la migration SQL
+npm run db:check                            # le schéma Prisma correspond aux migrations (vérifié en CI)
 ```
 
 ## Vérifier

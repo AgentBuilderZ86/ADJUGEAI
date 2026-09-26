@@ -40,7 +40,7 @@ export default function Accueil() {
                 <span className="text-xs font-semibold text-slate-400">{String(i + 1).padStart(2, "0")}</span>
                 <span
                   className={
-                    m.vague === 1 && m.cle === "chiffrer"
+                    !m.disponibilite.startsWith("Vague")
                       ? "rounded bg-marque-100 px-2 py-0.5 text-xs font-medium text-marque-800"
                       : "rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
                   }

@@ -5,7 +5,7 @@ import { MODULES } from "@/lib/modules";
 import { requireTenant } from "@/lib/session";
 import { deconnecter } from "../(auth)/actions";
 
-const ACTIFS = new Set(["chiffrer"]);
+const ACTIFS = new Set(["qualifier", "chiffrer"]);
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, db, tenantId } = await requireTenant();
@@ -13,7 +13,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="border-b border-slate-200 bg-slate-50 md:w-60 md:border-r md:border-b-0">
+      <aside className="print:hidden border-b border-slate-200 bg-slate-50 md:w-60 md:border-r md:border-b-0">
         <div className="flex items-center justify-between p-4">
           <Logo />
         </div>
@@ -35,8 +35,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
         </nav>
       </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end gap-3 border-b border-slate-200 px-4 py-3 text-sm">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="print:hidden flex items-center justify-end gap-3 border-b border-slate-200 px-4 py-3 text-sm">
           <span className="text-slate-600">
             {user.name} · <span className="font-medium">{abonnement?.palier ?? "GRATUIT"}</span>
           </span>
@@ -46,7 +46,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </Button>
           </form>
         </header>
-        <main className="flex-1 p-4 sm:p-8">{children}</main>
+        <main className="flex-1 p-4 sm:p-8 print:p-0">{children}</main>
       </div>
     </div>
   );

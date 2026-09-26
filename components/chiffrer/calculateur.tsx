@@ -20,7 +20,13 @@ import { cn, mad, pct } from "@/lib/utils";
 
 type Onglet = "simuler" | "analyser";
 
-export function Calculateur() {
+type TypeChiffrable = Exclude<TypeMarche, "etudes">;
+export interface ValeursInitiales {
+  type?: TypeChiffrable;
+  estimation?: number;
+}
+
+export function Calculateur({ initial }: { initial?: ValeursInitiales }) {
   const [onglet, setOnglet] = useState<Onglet>("simuler");
   return (
     <div>
@@ -45,16 +51,16 @@ export function Calculateur() {
           </button>
         ))}
       </div>
-      {onglet === "simuler" ? <Simuler /> : <Analyser />}
+      {onglet === "simuler" ? <Simuler initial={initial} /> : <Analyser />}
     </div>
   );
 }
 
 // ───────────────────────────── Simuler ─────────────────────────────
 
-function Simuler() {
-  const [type, setType] = useState<Exclude<TypeMarche, "etudes">>("travaux");
-  const [estimation, setEstimation] = useState("2 500 000");
+function Simuler({ initial }: { initial?: ValeursInitiales }) {
+  const [type, setType] = useState<TypeChiffrable>(initial?.type ?? "travaux");
+  const [estimation, setEstimation] = useState(initial?.estimation ? mad(initial.estimation).replace(" MAD", "") : "2 500 000");
   const [cout, setCout] = useState("");
   const [nMin, setNMin] = useState(MODELE_PAR_DEFAUT.nombreConcurrents.min);
   const [nMax, setNMax] = useState(MODELE_PAR_DEFAUT.nombreConcurrents.max);

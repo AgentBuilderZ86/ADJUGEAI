@@ -28,7 +28,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx prisma db push --skip-generate
+      - run: command -v psql || (sudo apt-get update -q && sudo apt-get install -y -q postgresql-client)
+      - run: npm run db:apply
+      - name: Le schéma Prisma correspond exactement aux migrations
+        run: npm run db:check
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
