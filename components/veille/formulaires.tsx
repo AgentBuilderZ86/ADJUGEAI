@@ -23,7 +23,7 @@ const TYPES: { v: TypeMarche; l: string }[] = [
   { v: "ETUDES", l: "Études" },
 ];
 
-export function FormulaireProfilVeille({ profil, modifiable }: { profil: ValeursProfil | null; modifiable: boolean }) {
+export function FormulaireProfilVeille({ profil, modifiable, emailActif }: { profil: ValeursProfil | null; modifiable: boolean; emailActif: boolean }) {
   const [etat, action, enCours] = useActionState(sauverProfilVeille, undefined);
   const p = profil ?? { motsCles: [], exclusions: [], regions: [], typesMarche: [], estimationMin: null, estimationMax: null, alerteEmail: true };
   return (
@@ -65,7 +65,10 @@ export function FormulaireProfilVeille({ profil, modifiable }: { profil: Valeurs
         </div>
         <label className="flex gap-2 text-sm">
           <input type="checkbox" name="alerteEmail" defaultChecked={p.alerteEmail} className="accent-marque-700" />
-          M&apos;alerter par e-mail des nouveaux avis (bientôt disponible)
+          <span>
+            Envoyer chaque matin aux membres du cabinet les nouveaux avis correspondants
+            {!emailActif && <span className="text-slate-500"> (envois en cours d&apos;activation)</span>}
+          </span>
         </label>
       </fieldset>
       {etat?.erreur && <p className="text-sm text-red-700">{etat.erreur}</p>}
