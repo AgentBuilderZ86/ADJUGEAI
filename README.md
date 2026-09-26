@@ -24,7 +24,8 @@ réglementaire (décret 2-22-431)**, constitution du dossier, résultats, exécu
 
 ```bash
 npm install
-cp .env.example .env          # renseigner DATABASE_URL et AUTH_SECRET (+ ANTHROPIC_API_KEY pour Qualifier)
+cp .env.example .env          # renseigner DATABASE_URL et AUTH_SECRET (+ ANTHROPIC_API_KEY pour Qualifier,
+                              #   clé créée dans un workspace de la console Anthropic)
 npm run db:apply              # applique netlify/database/migrations sur la base locale
 npm run dev                   # http://localhost:3000
 ```
@@ -46,6 +47,9 @@ npm run lint && npm run typecheck
 npm test                      # moteur de chiffrage + isolation (si DATABASE_URL est défini)
 npm run build
 ```
+
+En ligne : `GET /api/sante` indique si la base, l'authentification et la qualification sont configurées,
+et le commit déployé (voir [`docs/DEPLOIEMENT.md`](docs/DEPLOIEMENT.md)).
 
 La CI (`.github/workflows/ci.yml`) exécute ces étapes avec un PostgreSQL 16.
 
