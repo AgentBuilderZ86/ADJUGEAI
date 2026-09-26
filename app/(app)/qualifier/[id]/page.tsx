@@ -26,7 +26,10 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
   const { db } = await requireTenant();
   const dossier = await db.dossier.findUnique({
     where: { id },
-    include: { qualifications: { orderBy: { createdAt: "desc" }, take: 1 } },
+    include: {
+      qualifications: { orderBy: { createdAt: "desc" }, take: 1 },
+      simulations: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
   });
   const q = dossier?.qualifications[0];
   if (!dossier || !q) notFound();
@@ -45,7 +48,7 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
         </Link>
         <div className="flex gap-2">
           {typeChiffrage && dossier.estimation && (
-            <LienBouton href={`/chiffrer?type=${typeChiffrage}&estimation=${Number(dossier.estimation)}`} variante="secondaire">
+            <LienBouton href={`/chiffrer?type=${typeChiffrage}&estimation=${Number(dossier.estimation)}&dossier=${dossier.id}`} variante="secondaire">
               Chiffrer cet AO
             </LienBouton>
           )}
@@ -83,6 +86,22 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
           </Card>
         ))}
       </div>
+
+      {dossier.simulations[0] && (
+        <Card className="border-marque-600 bg-marque-50">
+          <p className="text-xs uppercase tracking-wide text-marque-800">Dernière simulation de prix</p>
+          <p className="mt-1 text-lg">
+            Prix recommandé{" "}
+            <span className="font-bold">
+              {dossier.simulations[0].prixRecommande ? mad(Number(dossier.simulations[0].prixRecommande)) : "—"}
+            </span>
+            {dossier.simulations[0].probabiliteGain !== null && (
+              <span className="text-slate-700"> · probabilité de gain {Math.round(dossier.simulations[0].probabiliteGain * 100)} %</span>
+            )}
+          </p>
+          <p className="text-xs text-slate-600">Simulée le {dossier.simulations[0].createdAt.toLocaleDateString("fr-FR")}</p>
+        </Card>
+      )}
 
       <Card>
         <h2 className="font-semibold">Synthèse</h2>

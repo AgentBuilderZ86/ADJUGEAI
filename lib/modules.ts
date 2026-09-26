@@ -2,7 +2,7 @@
 export const MODULES = [
   { cle: "veille", nom: "Veille", promesse: "Tous les AO utiles, filtrés sur votre métier, avec alertes.", vague: 1, disponibilite: "Vague 1" },
   { cle: "qualifier", nom: "Qualifier", promesse: "GO / NO GO argumenté en 5 minutes : grille à 6 blocs et critères éliminatoires.", vague: 1, disponibilite: "Disponible" },
-  { cle: "chiffrer", nom: "Chiffrer", promesse: "Prix de référence probable et prix optimal à déposer, par simulation.", vague: 1, disponibilite: "Calculateur en ligne" },
+  { cle: "chiffrer", nom: "Chiffrer", promesse: "Prix de référence probable et prix optimal à déposer, par simulation.", vague: 1, disponibilite: "Disponible" },
   { cle: "constituer", nom: "Constituer", promesse: "Pièces exigées, attestations à renouveler, mémoire technique, conformité au RC.", vague: 2, disponibilite: "Vague 2" },
   { cle: "resultats", nom: "Résultats", promesse: "Historique des offres par acheteur et concurrent, post-mortem de chaque AO.", vague: 2, disponibilite: "Vague 2" },
   { cle: "executer", nom: "Exécuter", promesse: "Jalons, cautions, décomptes, pénalités et comités de pilotage.", vague: 3, disponibilite: "Vague 3" },
