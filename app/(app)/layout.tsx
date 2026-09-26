@@ -6,7 +6,7 @@ import { requireTenant } from "@/lib/session";
 import { deconnecter } from "../(auth)/actions";
 import { ReinitialiserRechargement } from "@/components/reinitialiser-rechargement";
 
-const ACTIFS = new Set(["veille", "qualifier", "chiffrer"]);
+const ACTIFS = new Set(["veille", "qualifier", "chiffrer", "constituer"]);
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, db, tenantId } = await requireTenant();

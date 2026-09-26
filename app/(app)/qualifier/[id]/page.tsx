@@ -54,6 +54,11 @@ export default async function Detail({ params }: { params: Promise<{ id: string 
               Chiffrer cet AO
             </LienBouton>
           )}
+          {(q.verdict === "GO" || q.verdict === "GO_CONDITIONNEL") && (
+            <LienBouton href={`/constituer/${dossier.id}`} variante="secondaire">
+              Préparer les pièces
+            </LienBouton>
+          )}
           <BoutonImprimer />
         </div>
       </div>
