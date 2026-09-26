@@ -18,6 +18,7 @@ Projet Netlify : `adjugeai`. Chaque push sur une PR crée un *deploy preview* ; 
 | `AUTH_SECRET` | Aléatoire (`openssl rand -base64 32`), **secret** | Production, Deploy previews, Branch deploys — une variable secrète ne peut pas utiliser le contexte « All » |
 | `AUTH_TRUST_HOST` | `true` | Tous |
 | `ANTHROPIC_API_KEY` | Clé API Anthropic, **secret** — nom exact, avec le H | Production, Deploy previews, Branch deploys |
+| `ANTHROPIC_WORKSPACE_ID` | Identifiant `wrkspc_…` — **requis si la clé n'est pas rattachée à un workspace** (erreur « not scoped to a workspace ») ; inutile avec une clé créée dans un workspace | Tous |
 | `ADJUGE_MODELE_CLAUDE` | Facultatif (défaut `claude-sonnet-5`) | Tous |
 
 `DATABASE_URL` n'est **pas** à définir sur Netlify : Netlify Database fournit `NETLIFY_DB_URL`.

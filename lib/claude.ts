@@ -19,10 +19,24 @@ export class ClaudeNonConfigure extends Error {
   }
 }
 
-export function claude(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+/**
+ * Options du client. Une clé non rattachée à un espace de travail (workspace) de la console
+ * Anthropic exige l'en-tête anthropic-workspace-id : il est ajouté si ANTHROPIC_WORKSPACE_ID est défini.
+ */
+export function optionsClient(env: Record<string, string | undefined> = process.env) {
+  const apiKey = env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ClaudeNonConfigure();
-  client ??= new Anthropic({ apiKey, timeout: DELAI_MS, maxRetries: 0 });
+  const workspace = env.ANTHROPIC_WORKSPACE_ID?.trim();
+  return {
+    apiKey,
+    timeout: DELAI_MS,
+    maxRetries: 0,
+    ...(workspace ? { defaultHeaders: { "anthropic-workspace-id": workspace } } : {}),
+  };
+}
+
+export function claude(): Anthropic {
+  client ??= new Anthropic(optionsClient());
   return client;
 }
 
@@ -39,6 +53,9 @@ function detailApi(e: InstanceType<typeof Anthropic.APIError>): string {
 /** Traduit les erreurs de l'API en messages exploitables par l'utilisateur. */
 export function messageErreurClaude(e: unknown): string {
   if (e instanceof ClaudeNonConfigure) return e.message;
+  if (e instanceof Anthropic.APIError && /anthropic-workspace-id/i.test(detailApi(e))) {
+    return "Clé API Anthropic non rattachée à un espace de travail : renseignez ANTHROPIC_WORKSPACE_ID sur Netlify, ou créez une clé dans un workspace de la console Anthropic.";
+  }
   if (e instanceof Anthropic.APIError && /credit balance/i.test(detailApi(e))) {
     return "Crédit API Anthropic insuffisant : rechargez le compte dans la console Anthropic (Plans & Billing), puis réessayez.";
   }

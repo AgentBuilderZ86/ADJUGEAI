@@ -28,3 +28,20 @@ describe("messageErreurClaude", () => {
     expect(messageErreurClaude(new ClaudeNonConfigure())).toMatch(/pas encore activée/);
   });
 });
+
+describe("optionsClient", () => {
+  it("ajoute l'en-tête de workspace si ANTHROPIC_WORKSPACE_ID est défini", async () => {
+    const { optionsClient } = await import("./claude");
+    expect(optionsClient({ ANTHROPIC_API_KEY: "k", ANTHROPIC_WORKSPACE_ID: " wrkspc_123 " }).defaultHeaders).toEqual({
+      "anthropic-workspace-id": "wrkspc_123",
+    });
+    expect(optionsClient({ ANTHROPIC_API_KEY: "k" })).not.toHaveProperty("defaultHeaders");
+  });
+
+  it("explique une clé sans workspace", () => {
+    const m = messageErreurClaude(
+      erreur(400, "This API key is not scoped to a workspace, so this request must include the anthropic-workspace-id header"),
+    );
+    expect(m).toMatch(/ANTHROPIC_WORKSPACE_ID/);
+  });
+});
