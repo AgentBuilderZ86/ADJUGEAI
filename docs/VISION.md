@@ -69,6 +69,9 @@ au TJM). Pas de rémunération au succès (juridiquement délicate).
 Règle anti-dispersion : on ne démarre pas une vague tant que le seuil de la précédente n'est pas atteint ou
 explicitement levé.
 
+> 26/09/2026 : le fondateur a demandé d'ajouter de nouvelles fonctions ; Constituer (coffre-fort et liste des pièces)
+> est livré en avance sur la vague 2 (docs/CONSTITUER.md).
+
 ## Décisions ouvertes (fondateur)
 
 - [ ] Avis d'avocat sur le contrat Sia (non-concurrence, propriété intellectuelle) — **bloquant avant tout contact commercial**

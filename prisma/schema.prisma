@@ -426,10 +426,14 @@ model PieceEntreprise {
   id         String    @id @default(cuid())
   tenantId   String
   tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Clé du catalogue (lib/constituer/catalogue.ts)
   type       String
   libelle    String
+  /// Numéro ou référence de la pièce (n° d'attestation, de certificat…)
+  numero     String?
   fichierUrl String?
   delivreLe  DateTime?
+  /// Échéance saisie ; à défaut, déduite de la date de délivrance pour les pièces à durée réglementaire
   expireLe   DateTime?
   createdAt  DateTime  @default(now())
 
@@ -445,10 +449,15 @@ model PieceRequise {
   dossier     Dossier     @relation(fields: [dossierId], references: [id], onDelete: Cascade)
   enveloppe   String // administratif, technique, financier
   libelle     String
+  /// Texte ou source de l'exigence (« Décret 2-22-431, art. 28 », « RC — analyse »…)
+  reference   String?
+  /// Type de pièce du coffre-fort qui satisfait l'exigence, le cas échéant
+  typePiece   String?
   eliminatoire Boolean    @default(false)
   statut      StatutPiece @default(MANQUANTE)
   pieceId     String?
   responsable String?
+  ordre       Int         @default(0)
 
   @@index([tenantId, dossierId])
 }
