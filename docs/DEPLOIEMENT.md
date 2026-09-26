@@ -30,7 +30,7 @@ Une variable modifiée n'est prise en compte qu'au déploiement suivant.
 B=https://deploy-preview-<n>--adjugeai.netlify.app
 curl -s -o /dev/null -w '%{http_code}\n' $B/calculateur      # 200
 curl -s -o /dev/null -w '%{http_code}\n' $B/qualifier        # 307 vers /connexion
-curl -s $B/api/auth/csrf                                     # {"csrfToken": ...} ; sinon AUTH_SECRET manque
+curl -s $B/api/sante     # {"base":"ok","authentification":"configurée","qualification":"configurée",...}
 ```
 
 Le résumé du déploiement Netlify doit indiquer les migrations appliquées et des fonctions déployées.
