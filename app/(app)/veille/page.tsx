@@ -12,6 +12,8 @@ export const metadata = { title: "Veille" };
 
 const LIBELLES_TYPE: Record<string, string> = { TRAVAUX: "Travaux", FOURNITURES: "Fournitures", SERVICES: "Services", ETUDES: "Études" };
 
+const STATUTS_COLLECTE: Record<string, string> = { ok: "réussie", en_cours: "en cours", interrompue: "interrompue, reprise au passage suivant", erreur: "en erreur" };
+
 function joursRestants(d: Date | null) {
   if (!d) return null;
   return Math.ceil((d.getTime() - Date.now()) / 86_400_000);
@@ -38,7 +40,7 @@ export default async function Veille() {
           <p className="mt-1 text-xs text-slate-500">
             {total.toLocaleString("fr-FR")} avis ouverts suivis ·{" "}
             {collecte
-              ? `dernière collecte le ${dateHeureFr(collecte.debut)} (${collecte.statut === "ok" ? "réussie" : collecte.statut})`
+              ? `dernière collecte le ${dateHeureFr(collecte.debut)} (${STATUTS_COLLECTE[collecte.statut] ?? collecte.statut})`
               : "aucune collecte encore"}
           </p>
         </div>

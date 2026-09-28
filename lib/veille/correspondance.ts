@@ -22,10 +22,21 @@ export interface AvisComparable {
 export function normaliser(s: string): string {
   return s
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+/**
+ * Noms d'institutions qui contiennent « conseil » (Conseil provincial, Conseil de la région, CNDH…) :
+ * retirés avant la recherche des mots-clés, sinon « conseil » ramène tous les achats de ces collectivités.
+ */
+const INSTITUTIONS =
+  /\bconseils? (?:(?:de la |de l |du |des )?(?:province|provincial|prefecture|prefectoral|region|regional|commune|communal|municipal|arrondissement|ville)\w*|national\w*|superieur\w*|economique\w*|d arrondissement|de l ordre\w*|de la concurrence|de la ville|des droits|d administration|de surveillance|de gouvernance)/g;
+
+export function sansInstitutions(texteNormalise: string) {
+  return texteNormalise.replace(INSTITUTIONS, " ").replace(/\s+/g, " ").trim();
 }
 
 /** Racine grossière : retire le pluriel (« routes » → « route », « travaux » → « travau »). */
@@ -100,7 +111,8 @@ export function pertinence(avis: AvisComparable, c: CriteresVeille): number | nu
     if (c.estimationMax !== null && avis.estimation > c.estimationMax) return null;
   }
   if (!c.motsCles.length) return 0;
-  const trouves = c.motsCles.filter((m) => contient(texte, m)).length;
+  const texteMetier = sansInstitutions(texte);
+  const trouves = c.motsCles.filter((m) => contient(texteMetier, m)).length;
   return trouves > 0 ? trouves : null;
 }
 
