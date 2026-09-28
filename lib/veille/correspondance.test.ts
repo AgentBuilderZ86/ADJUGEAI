@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lireListeTermes, normaliser, pertinence, typeDepuisCategorie, type CriteresVeille } from "./correspondance";
+import { lireListeTermes, normaliser, pertinence, sansInstitutions, typeDepuisCategorie, type CriteresVeille } from "./correspondance";
 
 const criteres = (c: Partial<CriteresVeille> = {}): CriteresVeille => ({
   motsCles: [],
@@ -77,5 +77,28 @@ describe("typeDepuisCategorie", () => {
 describe("lireListeTermes", () => {
   it("découpe sur virgules, points-virgules et lignes, sans doublons", () => {
     expect(lireListeTermes("voirie, assainissement ;\nvoirie\n\n bâtiment ")).toEqual(["voirie", "assainissement", "bâtiment"]);
+  });
+});
+
+describe("institutions nommées « conseil »", () => {
+  const conseil: CriteresVeille = { motsCles: ["conseil"], exclusions: [], regions: [], typesMarche: [], estimationMin: null, estimationMax: null };
+  const avis = (objet: string, acheteur: string | null = null) => ({ objet, acheteur, lieu: null, typeMarche: null, estimation: null });
+
+  it("ne confond pas une collectivité ou une institution avec du conseil", () => {
+    expect(pertinence(avis("Acquisition de deux ambulances au profit du Conseil de la Province de Jerada"), conseil)).toBeNull();
+    expect(pertinence(avis("Travaux de bitumage d'une route", "CONSEIL PROVINCIAL DE SIDI IFNI"), conseil)).toBeNull();
+    expect(pertinence(avis("Achat de mobilier pour le Conseil National des Droits de l'Homme"), conseil)).toBeNull();
+    expect(pertinence(avis("Fournitures pour le Conseil Économique, Social et Environnemental"), conseil)).toBeNull();
+    expect(pertinence(avis("Hébergement des invités du conseil communal de Dakhla"), conseil)).toBeNull();
+  });
+
+  it("garde le conseil comme prestation, même chez une collectivité", () => {
+    expect(pertinence(avis("Mission de conseil juridique", "Conseil Provincial de Taza"), conseil)).toBe(1);
+    expect(pertinence(avis("Assistance technique à travers le conseil agricole privé"), conseil)).toBe(1);
+    expect(pertinence(avis("Conseil en organisation au profit du conseil régional"), conseil)).toBe(1);
+  });
+
+  it("retire seulement le nom de l'institution", () => {
+    expect(sansInstitutions(normaliser("Étude pour le Conseil de la Région Souss-Massa"))).toBe("etude pour le souss massa");
   });
 });
