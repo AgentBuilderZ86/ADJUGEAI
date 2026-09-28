@@ -90,6 +90,23 @@ function contient(texteNormalise: string, terme: string) {
   return false;
 }
 
+/** Objet qui décrit une prestation intellectuelle (étude, assistance technique, audit…), noms d'institutions retirés. */
+const MOTIFS_ETUDE = /\b(etudes?|assistance technique|conseil|audit|expertise|amo|assistance a (la )?maitrise d ouvrage)\b/;
+
+export function objetEtude(objet: string) {
+  return MOTIFS_ETUDE.test(sansInstitutions(normaliser(objet)));
+}
+
+/**
+ * Filtre de type : les études sont des services (cocher « Services » les inclut), et une étude reste
+ * une étude même quand le portail la range en travaux ou en fournitures (« Étude du schéma directeur… »).
+ */
+function typeAccepte(avis: AvisComparable, types: TypeMarche[]) {
+  if (types.includes(avis.typeMarche!)) return true;
+  if (avis.typeMarche === "ETUDES" && types.includes("SERVICES")) return true;
+  return types.includes("ETUDES") && objetEtude(avis.objet);
+}
+
 /**
  * Pertinence d'un avis pour un profil : null si l'avis est exclu, sinon le nombre de mots-clés trouvés
  * (0 si le profil n'a pas de mot-clé : seuls les filtres s'appliquent).
@@ -101,7 +118,7 @@ function contient(texteNormalise: string, terme: string) {
 export function pertinence(avis: AvisComparable, c: CriteresVeille): number | null {
   const texte = normaliser(`${avis.objet} ${avis.acheteur ?? ""}`);
   if (c.exclusions.some((e) => contient(texte, e))) return null;
-  if (c.typesMarche.length && avis.typeMarche && !c.typesMarche.includes(avis.typeMarche)) return null;
+  if (c.typesMarche.length && avis.typeMarche && !typeAccepte(avis, c.typesMarche)) return null;
   if (c.regions.length && avis.lieu) {
     const lieu = normaliser(avis.lieu);
     if (!c.regions.some((r) => contient(lieu, r))) return null;
@@ -121,7 +138,7 @@ export function typeDepuisCategorie(categorie: string | null, objet = ""): TypeM
   const c = normaliser(categorie ?? "");
   if (c.startsWith("travaux")) return "TRAVAUX";
   if (c.startsWith("fourniture")) return "FOURNITURES";
-  if (c.startsWith("service")) return /\b(etude|etudes|assistance technique|conseil|audit|expertise)\b/.test(normaliser(objet)) ? "ETUDES" : "SERVICES";
+  if (c.startsWith("service")) return objetEtude(objet) ? "ETUDES" : "SERVICES";
   return null;
 }
 

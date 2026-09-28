@@ -102,3 +102,25 @@ describe("institutions nommées « conseil »", () => {
     expect(sansInstitutions(normaliser("Étude pour le Conseil de la Région Souss-Massa"))).toBe("etude pour le souss massa");
   });
 });
+
+describe("filtre par type de marché", () => {
+  const profil = (typesMarche: CriteresVeille["typesMarche"]): CriteresVeille => ({
+    motsCles: ["schéma directeur"], exclusions: [], regions: [], typesMarche, estimationMin: null, estimationMax: null,
+  });
+  const avis = (objet: string, typeMarche: "TRAVAUX" | "SERVICES" | "ETUDES" | "FOURNITURES") => ({ objet, acheteur: null, lieu: null, typeMarche, estimation: null });
+
+  it("« Services » inclut les études", () => {
+    expect(pertinence(avis("Etude du schéma directeur d'assainissement", "ETUDES"), profil(["SERVICES"]))).toBe(1);
+  });
+
+  it("« Études » reconnaît une étude rangée en travaux par le portail", () => {
+    expect(pertinence(avis("Etude du schéma directeur des réseaux d'électricité", "TRAVAUX"), profil(["ETUDES"]))).toBe(1);
+    expect(pertinence(avis("Création des départs HTA suivant le schéma directeur", "TRAVAUX"), profil(["ETUDES"]))).toBeNull(); // des travaux, pas une étude
+    expect(pertinence(avis("Travaux de voirie, schéma directeur", "TRAVAUX"), profil(["FOURNITURES"]))).toBeNull();
+  });
+
+  it("une collectivité « Conseil » ne fait pas d'un achat une étude", () => {
+    const c = { ...profil(["ETUDES"]), motsCles: ["ambulance"] };
+    expect(pertinence(avis("Acquisition d'une ambulance au profit du Conseil Provincial", "FOURNITURES"), c)).toBeNull();
+  });
+});
